@@ -54,6 +54,14 @@ export class LawOfficesService {
     'gdansk',
   ];
 
+  private readonly cityCoords: Record<string, string> = {
+    poznan: '@52.406374,16.9251681,13z',
+    warszawa: '@52.229675,21.0122287,13z',
+    krakow: '@50.064650,19.9449799,13z',
+    wroclaw: '@51.107885,17.0385376,13z',
+    gdansk: '@54.352025,18.6466384,13z',
+  };
+
   constructor(private readonly http: HttpService) {}
 
   async getOffices(city: string): Promise<LawOffice[]> {
@@ -89,39 +97,50 @@ export class LawOfficesService {
   }
 
   private async fetchCity(city: string): Promise<LawOffice[]> {
-    const apiKey = process.env.SERPAPI_KEY;
-    if (!apiKey) {
+    const key = process.env.SERPAPI_KEY;
+    if (!key) {
       throw new HttpException(
-        'Missing SerpAPI key',
+        'Missing SERPAPI_KEY',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
 
-    const results: LawOffice[] = [];
-    let nextPageToken: string | undefined;
+    const ll = this.cityCoords[city.toLowerCase()];
+    if (!ll) {
+      throw new HttpException(
+        `No coordinates for city: ${city}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
-    do {
+    const results: LawOffice[] = [];
+
+    for (let start of [0, 20, 40, 60, 80]) {
       const params: any = {
         engine: 'google_maps',
-        num: 5,
-        type: 'search',
         q: `Kancelaria Adwokacka ${city}`,
-        api_key: apiKey,
-        ...(nextPageToken && { next_page_token: nextPageToken }),
+        api_key: key,
+        // strona 0 – bez start; strony 1–2 – start+ll
+        ...(start ? { start, ll } : {}),
       };
+
       const resp = await firstValueFrom(
         this.http.get('https://serpapi.com/search.json', { params }),
       );
       const data = resp.data;
 
       if (data.error) {
+        // „Missing query `ll`” już nie wystąpi, ale odsyłamy dalej każdy inny problem
         throw new HttpException(
           `SerpAPI error: ${data.error}`,
           HttpStatus.BAD_GATEWAY,
         );
       }
 
-      for (const item of data.local_results || []) {
+      const locals: any[] = data.local_results ?? [];
+      if (!locals.length) break; // brak kolejnych danych → stop
+
+      locals.forEach((item) =>
         results.push({
           position: item.position,
           title: item.title,
@@ -150,11 +169,12 @@ export class LawOfficesService {
           service_options: item.service_options,
           thumbnail: item.thumbnail,
           serpapi_thumbnail: item.serpapi_thumbnail,
-        });
-      }
+        }),
+      );
 
-      nextPageToken = data.next_page_token;
-    } while (nextPageToken);
+      // grzecznościowe 3 s przerwy, by uniknąć throttlingu
+      await new Promise((res) => setTimeout(res, 3000));
+    }
 
     return results;
   }
