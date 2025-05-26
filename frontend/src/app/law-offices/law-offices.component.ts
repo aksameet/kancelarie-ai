@@ -60,6 +60,7 @@ export class LawOfficesComponent implements OnInit, OnChanges {
       .subscribe((data) => {
         this.offices = data;
         this.loading = false;
+        console.log('Data =>', data);
       });
   }
 }
