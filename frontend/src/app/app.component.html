@@ -1,0 +1,14 @@
+<div class="p-4 max-w-xl mx-auto">
+  <label for="city" class="block mb-2 font-medium">Wybierz miasto:</label>
+  <select
+    id="city"
+    class="border rounded p-2 mb-6 w-full"
+    [(ngModel)]="selectedCity"
+  >
+    <option *ngFor="let c of cities" [value]="c">
+      {{ c | titlecase }}
+    </option>
+  </select>
+
+  <app-law-offices [city]="selectedCity"></app-law-offices>
+</div>
