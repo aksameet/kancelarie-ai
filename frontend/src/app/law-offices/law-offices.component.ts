@@ -1,66 +1,83 @@
-import {
-  Component,
-  Input,
-  OnInit,
-  OnChanges,
-  SimpleChanges,
-} from '@angular/core';
+// src/app/law-offices/law-offices.component.ts
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { catchError } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { catchError, of } from 'rxjs';
 
-import { LawOffice } from '../models/law-office.model';
 import { LawOfficeService } from '../services/law-office.service';
+import { LawOffice } from '../models/law-office.model';
 
 @Component({
   selector: 'app-law-offices',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './law-offices.component.html',
-  styleUrls: ['./law-offices.component.scss'],
 })
-export class LawOfficesComponent implements OnInit, OnChanges {
-  @Input() city = 'poznan';
+export class LawOfficesComponent {
+  /* ───────── PRIVATE BACKING FIELDS ───────── */
+  private _city = 'poznan';
+  private _type = 'adwokacka';
+  private _limit = 20;
 
+  /* ───────── INPUTS with SETTERS ───────── */
+  @Input()
+  set city(val: string) {
+    if (val !== this._city) {
+      this._city = val;
+      this.fetch();
+    }
+  }
+  get city() {
+    return this._city;
+  }
+
+  @Input()
+  set officeType(val: string) {
+    if (val !== this._type) {
+      this._type = val;
+      this.fetch();
+    }
+  }
+  get officeType() {
+    return this._type;
+  }
+
+  @Input()
+  set resultLimit(val: number | string) {
+    const num = +val || 20;
+    if (num !== this._limit) {
+      this._limit = num;
+      this.fetch();
+    }
+  }
+  get resultLimit() {
+    return this._limit;
+  }
+
+  /* ───────── VIEW MODEL ───────── */
   offices: LawOffice[] = [];
   loading = false;
   error = '';
 
-  constructor(private service: LawOfficeService) {}
-
-  ngOnInit(): void {
-    this.fetchOffices();
+  constructor(private svc: LawOfficeService) {
+    this.fetch(); // pierwszy raz
   }
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['city'] && !changes['city'].firstChange) {
-      this.fetchOffices();
-    }
-  }
-
-  private fetchOffices(): void {
-    this.offices = [];
-    if (!this.city) {
-      return;
-    }
+  /* ───────── CORE ───────── */
+  private fetch() {
     this.loading = true;
     this.error = '';
 
-    this.service
-      .getOffices(this.city)
+    this.svc
+      .getOffices(this._city, this._type, this._limit)
       .pipe(
         catchError((err) => {
-          this.error =
-            err.status === 0
-              ? 'Nie można połączyć z backendem.'
-              : `Błąd ${err.status}: ${err.statusText}`;
+          this.error = err.message ?? 'Błąd pobierania';
           return of([] as LawOffice[]);
         })
       )
-      .subscribe((data) => {
-        this.offices = data;
+      .subscribe((list) => {
+        this.offices = list;
         this.loading = false;
-        console.log('Data =>', data);
       });
   }
 }

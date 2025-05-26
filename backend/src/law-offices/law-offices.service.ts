@@ -1,60 +1,24 @@
-import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, Logger, HttpException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { Cron } from '@nestjs/schedule';
 import { firstValueFrom } from 'rxjs';
+import axios, { CancelTokenSource } from 'axios';
 
-export interface LawOffice {
-  position: number;
-  title: string;
-  place_id: string;
-  data_id: string;
-  data_cid: string;
-  reviews_link: string;
-  photos_link: string;
-  gps_coordinates: { latitude: number; longitude: number };
-  place_id_search: string;
-  provider_id: string;
-  rating: number;
-  reviews: number;
-  type: string;
-  types: string[];
-  type_id: string;
-  type_ids: string[];
-  address: string;
-  open_state: string;
-  hours: string;
-  operating_hours: Record<
-    | 'monday'
-    | 'tuesday'
-    | 'wednesday'
-    | 'thursday'
-    | 'friday'
-    | 'saturday'
-    | 'sunday',
-    string
-  >;
-  phone?: string;
-  website?: string;
-  extensions: any[];
-  unsupported_extensions: any[];
-  service_options: { online_appointments: boolean; onsite_services: boolean };
-  thumbnail?: string;
-  serpapi_thumbnail?: string;
-}
+import { LawOffice } from './law-office.entity';
+import { LawOfficePersistService } from './law-office-persist.service';
 
 @Injectable()
 export class LawOfficesService {
-  private readonly logger = new Logger(LawOfficesService.name);
-  private readonly cache = new Map<string, LawOffice[]>();
-  private readonly cities = [
-    'poznan',
-    'warszawa',
-    'krakow',
-    'wroclaw',
-    'gdansk',
-  ];
+  private readonly log = new Logger(LawOfficesService.name);
 
-  private readonly cityCoords: Record<string, string> = {
+  /** aktywne zapytania HTTP  – klucz: `${city}:${type}` */
+  private readonly inFlight = new Map<string, CancelTokenSource>();
+
+  /** globalna flaga – czy scrapowanie włączone */
+  private readonly SCRAPER_ENABLED = process.env.SCRAPER_ENABLED !== 'false';
+
+  /* stałe współrzędne map-centre (potrzebne przy start>0) */
+  private readonly coords: Record<string, string> = {
     poznan: '@52.406374,16.9251681,13z',
     warszawa: '@52.229675,21.0122287,13z',
     krakow: '@50.064650,19.9449799,13z',
@@ -62,136 +26,182 @@ export class LawOfficesService {
     gdansk: '@54.352025,18.6466384,13z',
   };
 
-  constructor(private readonly http: HttpService) {}
+  /* etykiety zapytań */
+  private readonly typeLabel: Record<string, string> = {
+    adwokacka: 'Adwokacka',
+    radcowska: 'Radcowska',
+    notarialna: 'Notarialna',
+    komornicza: 'Komornicza',
+    podatkowa: 'Podatkowa',
+  };
 
-  async getOffices(city: string): Promise<LawOffice[]> {
+  constructor(
+    private readonly http: HttpService,
+    private readonly persist: LawOfficePersistService,
+  ) {}
+
+  /* ------------------------------------------------------------------ */
+  /*  PUBLICZNE API                                                     */
+  /* ------------------------------------------------------------------ */
+  async getOffices(
+    city: string,
+    type = 'adwokacka',
+    limit = 20,
+  ): Promise<LawOffice[]> {
     city = city.toLowerCase();
-    if (!this.cache.has(city)) {
-      try {
-        const data = await this.fetchCity(city);
-        this.cache.set(city, data);
-      } catch (err: any) {
-        this.handleFetchError(err);
-      }
-    }
-    return this.cache.get(city) ?? [];
+    type = type.toLowerCase();
+    const lim = Math.min(Math.max(20, Math.floor(+limit / 20) * 20), 100);
+
+    /* 1️⃣ zawsze najpierw baza danych */
+    const fromDb = await this.persist.find(city, type, lim);
+    if (fromDb.length || !this.SCRAPER_ENABLED) return fromDb;
+
+    /* 2️⃣ brak w bazie → scrape, zapisz, zwróć */
+    const scraped = await this.scrapeAndPersist(city, type, lim);
+    return scraped;
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  CRON – odśwież całość raz dziennie                                 */
+  /* ------------------------------------------------------------------ */
   @Cron('0 3 * * *', { timeZone: 'Europe/Warsaw' })
-  async refreshAll(): Promise<void> {
-    this.logger.log('Refreshing all city caches…');
-    await Promise.all(
-      this.cities.map(async (city) => {
+  async refreshAll() {
+    if (!this.SCRAPER_ENABLED) return;
+
+    for (const city of Object.keys(this.coords)) {
+      for (const type of Object.keys(this.typeLabel)) {
         try {
-          const data = await this.fetchCity(city);
-          this.cache.set(city, data);
-        } catch (err: any) {
-          this.logger.error(
-            `Failed to refresh ${city}`,
-            err.response?.data || err.message,
-          );
+          await this.scrapeAndPersist(city, type, 100);
+          this.log.log(`CRON refreshed ${city} [${type}]`);
+        } catch (e) {
+          this.log.error(`CRON ${city}/${type} failed`, (e as Error).message);
         }
-      }),
-    );
-    this.logger.log('Refresh complete.');
-  }
-
-  private async fetchCity(city: string): Promise<LawOffice[]> {
-    const key = process.env.SERPAPI_KEY;
-    if (!key) {
-      throw new HttpException(
-        'Missing SERPAPI_KEY',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
-    const ll = this.cityCoords[city.toLowerCase()];
-    if (!ll) {
-      throw new HttpException(
-        `No coordinates for city: ${city}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const results: LawOffice[] = [];
-
-    for (let start of [0, 20, 40, 60, 80]) {
-      const params: any = {
-        engine: 'google_maps',
-        q: `Kancelaria Adwokacka ${city}`,
-        api_key: key,
-        // strona 0 – bez start; strony 1–2 – start+ll
-        ...(start ? { start, ll } : {}),
-      };
-
-      const resp = await firstValueFrom(
-        this.http.get('https://serpapi.com/search.json', { params }),
-      );
-      const data = resp.data;
-
-      if (data.error) {
-        // „Missing query `ll`” już nie wystąpi, ale odsyłamy dalej każdy inny problem
-        throw new HttpException(
-          `SerpAPI error: ${data.error}`,
-          HttpStatus.BAD_GATEWAY,
-        );
       }
-
-      const locals: any[] = data.local_results ?? [];
-      if (!locals.length) break; // brak kolejnych danych → stop
-
-      locals.forEach((item) =>
-        results.push({
-          position: item.position,
-          title: item.title,
-          place_id: item.place_id,
-          data_id: item.data_id,
-          data_cid: item.data_cid,
-          reviews_link: item.reviews_link,
-          photos_link: item.photos_link,
-          gps_coordinates: item.gps_coordinates,
-          place_id_search: item.place_id_search,
-          provider_id: item.provider_id,
-          rating: item.rating,
-          reviews: item.reviews,
-          type: item.type,
-          types: item.types,
-          type_id: item.type_id,
-          type_ids: item.type_ids,
-          address: item.address,
-          open_state: item.open_state,
-          hours: item.hours,
-          operating_hours: item.operating_hours,
-          phone: item.phone,
-          website: item.website,
-          extensions: item.extensions,
-          unsupported_extensions: item.unsupported_extensions,
-          service_options: item.service_options,
-          thumbnail: item.thumbnail,
-          serpapi_thumbnail: item.serpapi_thumbnail,
-        }),
-      );
-
-      // grzecznościowe 3 s przerwy, by uniknąć throttlingu
-      await new Promise((res) => setTimeout(res, 3000));
     }
-
-    return results;
   }
 
-  private handleFetchError(err: any): never {
-    const msg = err.response?.data?.error as string | undefined;
-    if (msg?.includes('Invalid API key')) {
-      this.logger.error('Invalid SerpAPI key');
-      throw new HttpException(
-        'Configuration error: invalid SerpAPI key',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+  /* ------------------------------------------------------------------ */
+  /*  WEWNĘTRZNE                                                         */
+  /* ------------------------------------------------------------------ */
+  private async scrapeAndPersist(
+    city: string,
+    type: string,
+    limit: number,
+  ): Promise<LawOffice[]> {
+    const key = `${city}:${type}`;
+
+    /* anuluj ewentualne poprzednie zapytanie */
+    const prev = this.inFlight.get(key);
+    if (prev) {
+      prev.cancel('superseded by newer request');
+      this.inFlight.delete(key);
     }
-    this.logger.error('Fetch failed', err.response?.data || err.message);
-    throw new HttpException(
-      'Failed to fetch from SerpAPI',
-      HttpStatus.BAD_GATEWAY,
-    );
+
+    /* pobierz dane */
+    const data = await this.fetch(city, type, limit, key);
+    await this.persist.replace(city, type, data); // zapisz w bazie
+
+    return data;
+  }
+
+  /** Łączy się z SerpAPI, stronicuje co 20 wyników */
+  private async fetch(
+    city: string,
+    type: string,
+    limit: number,
+    flightKey: string,
+  ): Promise<LawOffice[]> {
+    const apiKey = process.env.SERPAPI_KEY;
+    if (!apiKey) throw new HttpException('SERPAPI_KEY missing', 500);
+
+    const ll = this.coords[city];
+    if (!ll)
+      throw new HttpException(`Brak współrzędnych dla miasta ${city}`, 400);
+
+    const q = `Kancelaria ${this.typeLabel[type] || 'Adwokacka'} ${city}`;
+    const pages = Math.ceil(limit / 20); // 1 … 5
+    const starts = Array.from({ length: pages }, (_, i) => i * 20);
+
+    /* token anulujący */
+    const src: CancelTokenSource = axios.CancelToken.source();
+    this.inFlight.set(flightKey, src);
+
+    const out: LawOffice[] = [];
+
+    try {
+      for (const start of starts) {
+        const { data } = await firstValueFrom(
+          this.http.get('https://serpapi.com/search.json', {
+            params: {
+              engine: 'google_maps',
+              q,
+              api_key: apiKey,
+              ...(start ? { start, ll } : {}), // dla 20,40,60…
+            },
+            cancelToken: src.token,
+          }),
+        );
+
+        if (data.error?.includes("hasn't returned any results")) break;
+        if (data.error) throw new HttpException(`SerpAPI: ${data.error}`, 502);
+
+        const locals: any[] = data.local_results ?? [];
+        if (!locals.length) break;
+
+        /* mapowanie → „bezpieczny” model */
+        locals.forEach((it: any) =>
+          out.push({
+            id: undefined!,
+            created_at: undefined!,
+            updated_at: undefined!,
+
+            city,
+            specialization: type,
+
+            position: it.position ?? 0,
+            title: it.title ?? '',
+
+            place_id: it.place_id ?? '',
+            data_id: it.data_id ?? '',
+            data_cid: it.data_cid ?? '',
+
+            rating: it.rating ?? 0,
+            reviews: it.reviews ?? 0,
+
+            address: it.address ?? '',
+            phone: it.phone ?? '',
+            website: it.website ?? '',
+
+            types: it.types ?? [],
+            type_id: it.type_id ?? '',
+            type_ids: it.type_ids ?? [],
+
+            thumbnail: it.thumbnail ?? '',
+            serpapi_thumbnail: it.serpapi_thumbnail ?? '',
+
+            gps_coordinates: it.gps_coordinates ?? {},
+            operating_hours: it.operating_hours ?? {},
+
+            extensions: it.extensions ?? [],
+            unsupported_extensions: it.unsupported_extensions ?? [],
+            service_options: it.service_options ?? {},
+
+            reviews_link: it.reviews_link ?? '',
+            photos_link: it.photos_link ?? '',
+            place_id_search: it.place_id_search ?? '',
+
+            open_state: it.open_state ?? '',
+            hours: it.hours ?? '',
+          } as LawOffice),
+        );
+
+        if (locals.length < 20) break; // koniec wyników
+        await new Promise((r) => setTimeout(r, 3000)); // politeness delay
+      }
+    } finally {
+      this.inFlight.delete(flightKey);
+    }
+
+    return out.slice(0, limit);
   }
 }

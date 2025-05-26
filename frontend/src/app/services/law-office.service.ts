@@ -9,8 +9,9 @@ import { LawOffice } from '../models/law-office.model';
 export class LawOfficeService {
   constructor(private http: HttpClient) {}
 
-  /** Pobiera listę kancelarii dla danego miasta */
-  getOffices(city: string): Observable<LawOffice[]> {
-    return this.http.get<LawOffice[]>(`/api/cities/${city}/law-offices`);
+  getOffices(city: string, type: string, limit: number) {
+    return this.http.get<LawOffice[]>(`/api/cities/${city}/law-offices`, {
+      params: { type, limit },
+    });
   }
 }

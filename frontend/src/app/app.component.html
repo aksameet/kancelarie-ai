@@ -1,14 +1,30 @@
-<div class="p-4 max-w-xl mx-auto">
-  <label for="city" class="block mb-2 font-medium">Wybierz miasto:</label>
-  <select
-    id="city"
-    class="border rounded p-2 mb-6 w-full"
-    [(ngModel)]="selectedCity"
-  >
-    <option *ngFor="let c of cities" [value]="c">
-      {{ c | titlecase }}
-    </option>
+<!-- src/app/app.component.html -->
+<div class="p-4 max-w-xl mx-auto space-y-4">
+  <div>
+    <label class="font-medium">Typ kancelarii:</label>
+    <select [(ngModel)]="selectedType" class="border p-2 w-full">
+      <option *ngFor="let t of officeTypes" [value]="t.value">
+        {{ t.label }}
+      </option>
+    </select>
+  </div>
+
+  <div>
+    <label class="font-medium">Miasto:</label>
+    <select [(ngModel)]="selectedCity" class="border p-2 w-full">
+      <option *ngFor="let c of cities" [value]="c">{{ c | titlecase }}</option>
+    </select>
+  </div>
+
+  <label>Ilość wyników:</label>
+  <select [(ngModel)]="selectedLimit" class="border p-2 w-full">
+    <option *ngFor="let n of limits" [value]="n">{{ n }}</option>
   </select>
 
-  <app-law-offices [city]="selectedCity"></app-law-offices>
+  <app-law-offices
+    [city]="selectedCity"
+    [officeType]="selectedType"
+    [resultLimit]="selectedLimit"
+  >
+  </app-law-offices>
 </div>
