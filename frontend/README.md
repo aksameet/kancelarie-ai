@@ -1,27 +1,131 @@
-# Frontend
+# Kancelarie-AI – Proof-of-Concept
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 18.1.2.
+## Struktura projektu
 
-## Development server
+| Folder       | Technologia / rola                              | Kluczowe biblioteki                        |
+|--------------|--------------------------------------------------|--------------------------------------------|
+| `backend/`   | NestJS + TypeORM + PostgreSQL (API + scraper)   | `@nestjs/*`, `typeorm`, `pg`, `axios`      |
+| `frontend/`  | Angular 18 + Tailwind (UI stand-alone)           | `@angular/*`, `tailwindcss`, `autoprefixer`|
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+---
 
-## Code scaffolding
+## Backend – przepływ danych
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+```
+GET /api/...  ─►  LawOfficesService
+                    ├─► sprawdza bazę (LawOfficePersistService)
+                    └─► zapisuje dane w bazie (replace)
+```
 
-## Build
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+- Obsługa automatycznego anulowania zduplikowanych requestów (axios CancelToken)
+- Dane typu `jsonb`, brakujące pola `rating` i `reviews` ustawiane na `0`
 
-## Running unit tests
+---
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+## Frontend – Angular App
 
-## Running end-to-end tests
+- Prosty UI z wyborem miasta, specjalizacji i limitu
+- Endpoint:
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+  ```
+  GET /api/cities/:city/law-offices?type=komornicza&limit=60
+  ```
 
-## Further help
+- Lista: tytuł kancelarii, miniatura, adres, rating, liczba opinii
+- Dane tylko z lokalnej bazy
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+---
+
+### Baza danych PostgreSQL
+
+```bash
+docker run --name pg-kancelarie \
+  -e POSTGRES_PASSWORD=secret \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+### Backend
+
+```bash
+cd backend
+cp .env.example .env      # uzupełnij DATABASE_URL 
+npm install
+npm run typeorm:migrate
+npm run start:dev         # nasłuchuje na http://localhost:3000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run start             # http://localhost:4200
+```
+
+---
+
+## Zmienne środowiskowe (`.env`)
+
+| Zmienna           | Opis                                              |
+|-------------------|---------------------------------------------------|
+| `DATABASE_URL`    | `postgres://user:pass@localhost:5432/db`         |
+| `PORT`            | Port backendu – domyślnie `3000`                 |
+| `GROQ_API_KEY`    | Klucz API do analizy AI (kolejny krok)           |
+
+---
+
+## Struktura tabeli `law_office` (TypeORM)
+
+| Pole                   | Typ danych   | Obowiązkowe | Uwagi                                      |
+|------------------------|--------------|-------------|---------------------------------------------|
+| `id`                   | integer      | ✓           | autoincrement                              |
+| `city`                 | string       | ✓           | miasto, np. `warszawa`                     |
+| `specialization`       | string       | ✓           | np. `radcowska`, `adwokacka`               |
+| `position`             | integer      | ✓           | pozycja w wynikach                         |
+| `title`                | string       | ✓           | nazwa kancelarii                           |
+| `rating`               | numeric      | ✓           | domyślnie `0`                              |
+| `reviews`              | integer      | ✓           | domyślnie `0`                              |
+| `address`, `phone`     | string       | -           |                                             |
+| `website`              | string       | -           |                                             |
+| `types`, `type_ids`    | `jsonb`      | -           |                               |
+| `gps_coordinates`      | `jsonb`      | -           | `{ latitude, longitude }`                  |
+| `operating_hours`      | `jsonb`      | -           |                                             |
+| `extensions`           | `jsonb`      | -           |                                             |
+| `unsupported_extensions` | `jsonb`    | -           |                                             |
+| `service_options`      | `jsonb`      | -           | np. `{"onsite_services":true}`             |
+| `reviews_link`         | string       | -           |                                             |
+| `photos_link`          | string       | -           |                                             |
+| `place_id_search`      | string       | -           |                                             |
+| `open_state`, `hours`  | string       | -           | np. `Closed ⋅ Opens 9 AM`                  |
+| `created_at`, `updated_at` | timestamp | ✓          | automatycznie ustawiane przez TypeORM      |
+
+---
+
+## Komendy developerskie
+
+### Backend
+
+```bash
+npm run start:dev           # uruchomienie NestJS z watch-mode
+npm run typeorm:migrate     # uruchomienie migracji
+npm run typeorm:revert      # cofnięcie ostatniej migracji
+```
+
+### Frontend
+
+```bash
+npm run start               # uruchomienie Angular dev servera
+npm run tailwind:build      # produkcyjna kompilacja CSS
+```
+
+---
+
+## Kolejny krok
+
+Podłączenie Groq API do analizy danych kancelarii:
+
+- scoring jakości (AI)
+- analiza sentymentu
+- rekomendacje dopasowane do użytkownika
