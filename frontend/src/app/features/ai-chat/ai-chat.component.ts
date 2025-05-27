@@ -1,4 +1,6 @@
-// src/app/features/ai-chat/ai-chat.component.ts
+/* ──────────────────────────────────────────────────────────────
+   src/app/features/ai-chat/ai-chat.component.ts
+   ────────────────────────────────────────────────────────────── */
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -19,41 +21,39 @@ export class AiChatComponent {
   messages: ChatMessage[] = [];
   draft = '';
   loading = false;
+  conversationId?: string;
 
   constructor(private chat: ChatService) {}
 
-  send() {
+  send(): void {
     const q = this.draft.trim();
     if (!q) return;
 
-    /* 1️⃣ pokaż pytanie */
+    /* user message */
     this.messages.push({ role: 'user', content: q });
     this.draft = '';
 
-    /* 2️⃣ placeholder „AI pisze…” */
-    const placeholder: ChatMessage = {
-      role: 'ai',
-      content: '__loading__',
-      thoughts: '',
-    };
-    this.messages.push(placeholder);
+    /* placeholder */
+    const ph: ChatMessage = { role: 'ai', content: '__loading__' };
+    this.messages.push(ph);
     this.loading = true;
 
-    /* 3️⃣ wywołanie backendu */
     this.chat
-      .ask(this.city, this.officeType, q, this.limit)
+      .ask(this.city, this.officeType, q, this.limit, this.conversationId)
       .subscribe({
-        next: ({ answer }) => {
-          /* obetnij blok <think> … </think> */
-          const regex = /<think>([\s\S]*?)<\/think>/i;
-          const thoughtsMatch = answer.match(regex);
-          placeholder.thoughts = thoughtsMatch?.[1].trim(); // opcjonalnie
-          placeholder.content = answer.replace(regex, '').trim();
+        next: ({ answer, conversationId }) => {
+          this.conversationId = conversationId;
+
+          const reg = /<think>([\s\S]*?)<\/think>/i;
+          const m = answer.match(reg);
+
+          ph.thoughts = m?.[1].trim();
+          ph.content = answer.replace(reg, '').trim() || '—';
         },
         error: () => {
-          placeholder.content = '❌ Błąd przy rozmowie z AI';
+          ph.content = '❌ Błąd przy rozmowie z AI';
         },
-      })
-      .add(() => (this.loading = false));
+        complete: () => (this.loading = false),
+      });
   }
 }

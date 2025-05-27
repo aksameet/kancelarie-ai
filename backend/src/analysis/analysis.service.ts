@@ -1,7 +1,10 @@
 /* ──────────────────────────────────────────────────────────────
    src/analysis/analysis.service.ts
-   Wersja  “pełna baza + kompaktowe formaty CSV / DICT / DELTA”
+   - pełny dump przy pierwszej wiadomości
+   - kolejne pytania lecą w obrębie conversationId (bez dumpu)
+   - trzy warianty kompresji promptu (CSV / DICT / DELTA)
    ────────────────────────────────────────────────────────────── */
+
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -9,24 +12,46 @@ import { firstValueFrom } from 'rxjs';
 import { LawOfficePersistService } from '../law-offices/law-office-persist.service';
 import { LawOffice } from '../law-offices/law-office.entity';
 
-/* util do budowy promptu z trzema trybami */
 import { buildPrompt, PromptMode } from './build-prompt';
+
+/* prościutka pamięć rozmów; w prodzie zastąp Redisem */
+@Injectable()
+export class ChatSessionService {
+  private store = new Map<string, any[]>(); // conversationId → msgs
+  private max = 50;
+
+  get(id: string) {
+    return this.store.get(id) ?? [];
+  }
+
+  create(initMsgs: any[]): string {
+    const id = crypto.randomUUID();
+    this.store.set(id, initMsgs.slice(-this.max));
+    return id;
+  }
+
+  push(id: string, msg: any) {
+    const arr = this.store.get(id);
+    if (!arr) return;
+    arr.push(msg);
+    if (arr.length > this.max) arr.shift();
+  }
+}
 
 @Injectable()
 export class AnalysisService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly apiKey = process.env.GROQ_API_KEY ?? '';
+  private readonly apiKey = process.env.GROQ_API_KEY!;
   private readonly model =
     process.env.GROQ_MODEL ?? 'deepseek-r1-distill-llama-70b';
 
   constructor(
     private readonly http: HttpService,
     private readonly persist: LawOfficePersistService,
+    private readonly sessions: ChatSessionService,
   ) {}
 
-  /* ------------------------------------------------------------
-     1) PODSUMOWANIE  – dokładnie 2 zdania
-     ------------------------------------------------------------ */
+  /* ---------------- podsumowanie (2 zdania) ---------------- */
   async summarize(
     city: string,
     type: string,
@@ -34,15 +59,14 @@ export class AnalysisService {
   ): Promise<{ summary: string }> {
     const offices = await this.fetchOffices(city, type, limit);
 
-    /* wybór najbardziej kompaktowego formatu */
-    const mode =
+    const prompt = buildPrompt(
+      offices,
       offices.length > 2_000
         ? PromptMode.DELTA
         : offices.length > 200
           ? PromptMode.DICT_ID
-          : PromptMode.CSV;
-
-    const prompt = buildPrompt(offices, mode);
+          : PromptMode.CSV,
+    );
 
     const body = {
       model: this.model,
@@ -69,61 +93,70 @@ export class AnalysisService {
     return { summary: raw.replace(/\[END]$/i, '').trim() };
   }
 
-  /* ------------------------------------------------------------
-     2) CHAT  – dowolne pytania
-     ------------------------------------------------------------ */
+  /* ---------------- chat z sesją ---------------- */
   async chat(
     city: string,
     type: string,
     limit: number,
     question: string,
-  ): Promise<{ answer: string }> {
+    conversationId?: string,
+  ): Promise<{ answer: string; conversationId: string }> {
     if (!question?.trim())
       throw new HttpException('Puste pytanie', HttpStatus.BAD_REQUEST);
 
-    const offices = await this.fetchOffices(city, type, limit);
+    /* 1) weź historię albo startuj nową */
+    const msgs = conversationId ? this.sessions.get(conversationId) : [];
 
-    const mode =
-      offices.length > 2_000
-        ? PromptMode.DELTA
-        : offices.length > 200
-          ? PromptMode.DICT_ID
-          : PromptMode.CSV;
+    /* 2) jeśli to nowa rozmowa – dokładamy dump bazy */
+    if (!conversationId) {
+      const offices = await this.fetchOffices(city, type, limit);
+      const prompt = buildPrompt(
+        offices,
+        offices.length > 2_000
+          ? PromptMode.DELTA
+          : offices.length > 200
+            ? PromptMode.DICT_ID
+            : PromptMode.CSV,
+      );
 
-    const prompt = buildPrompt(offices, mode);
+      msgs.push({
+        role: 'system',
+        name: 'database_dump',
+        content: prompt,
+      });
+    }
 
-    const body = {
-      model: this.model,
-      messages: [
-        {
-          role: 'system',
-          content: `
-Odpowiadasz zwięźle po polsku
-bazując WYŁĄCZNIE na danych przesłanych w kolejnej wiadomości
-(system:name="database_dump").
-          `.trim(),
-        },
-        {
-          role: 'system',
-          name: 'database_dump',
-          content: prompt,
-        },
-        { role: 'user', content: question },
-      ],
-      temperature: 0.1,
-      max_tokens: 1000,
-    };
+    /* 3) pytanie użytkownika */
+    msgs.push({ role: 'user', content: question });
 
+    /* 4) wywołanie LLM */
     const { data } = await firstValueFrom(
-      this.http.post(this.endpoint, body, this.headers()),
+      this.http.post(
+        this.endpoint,
+        {
+          model: this.model,
+          messages: msgs,
+          max_tokens: 3000,
+          temperature: 0.0,
+        },
+        this.headers(),
+      ),
     );
 
-    return { answer: data.choices?.[0]?.message?.content?.trim() ?? '' };
+    const reply = data.choices[0].message;
+    msgs.push(reply);
+
+    /* 5) zapisz / utwórz sesję */
+    if (conversationId) this.sessions.push(conversationId, reply);
+    else conversationId = this.sessions.create(msgs);
+
+    return {
+      answer: reply.content?.trim() ?? '',
+      conversationId,
+    };
   }
 
-  /* ------------------------------------------------------------
-     helpers
-     ------------------------------------------------------------ */
+  /* ---------------- helpers ---------------- */
   private headers() {
     return {
       headers: {
@@ -138,13 +171,10 @@ bazując WYŁĄCZNIE na danych przesłanych w kolejnej wiadomości
     type: string,
     limit: number,
   ): Promise<LawOffice[]> {
-    if (!this.apiKey)
-      throw new HttpException('GROQ_API_KEY missing', HttpStatus.BAD_REQUEST);
-
     const offices = await this.persist.find(city, type, limit);
     if (!offices.length)
       throw new HttpException(
-        'Brak danych w bazie – odśwież scraper',
+        'Brak danych – odśwież scraper',
         HttpStatus.NOT_FOUND,
       );
     return offices;

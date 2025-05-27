@@ -1,11 +1,13 @@
-// src/app/services/chat.service.ts
+/* ──────────────────────────────────────────────────────────────
+   src/app/services/chat.service.ts
+   ────────────────────────────────────────────────────────────── */
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
 export interface ChatMessage {
   role: 'user' | 'ai';
   content: string;
-  thoughts?: string; // opcjonalne, myśli AI
+  thoughts?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -14,12 +16,22 @@ export class ChatService {
 
   constructor(private http: HttpClient) {}
 
-  ask(city: string, type: string, question: string, limit = 100) {
-    return this.http.post<{ answer: string }>(this.api, {
+  ask(
+    city: string,
+    type: string,
+    question: string,
+    limit: number,
+    conversationId?: string
+  ) {
+    return this.http.post<{
+      answer: string;
+      conversationId: string;
+    }>(this.api, {
       city,
       type,
       question,
       limit,
+      conversationId,
     });
   }
 }

@@ -1,16 +1,20 @@
+// src/analysis/analysis.module.ts
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 
-import { AnalysisService } from './analysis.service';
-import { AnalysisController } from './analysis.controller';
 import { LawOfficesModule } from '../law-offices/law-offices.module';
+import { AnalysisController } from './analysis.controller';
+import { AnalysisService } from './analysis.service';
+
+import { ChatSessionService } from './analysis.service'; // ← eksportuj ChatSessionService stąd
 
 @Module({
-  imports: [
-    HttpModule, // do wywołań HTTP (Groq API)
-    LawOfficesModule, // daje dostęp do LawOfficePersistService
-  ],
-  providers: [AnalysisService],
+  imports: [HttpModule, LawOfficesModule],
   controllers: [AnalysisController],
+  providers: [
+    AnalysisService,
+
+    ChatSessionService, // ← tutaj
+  ],
 })
 export class AnalysisModule {}
