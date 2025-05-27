@@ -1,4 +1,3 @@
-// src/analysis/analysis.service.ts
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -18,25 +17,13 @@ export class AnalysisService {
     private readonly persist: LawOfficePersistService,
   ) {}
 
-  /**
-   * Pobiera kancelarie z bazy, przycina do `limit` rekordów
-   * i zwraca podsumowanie AI.
-   */
+  /* ----------------  dotychczasowy skrót  ---------------- */
   async summarize(
-    city = 'warszawa',
-    type = 'adwokacka',
-    limit = 100,
+    city: string,
+    type: string,
+    limit: number,
   ): Promise<{ summary: string }> {
-    if (!this.apiKey) {
-      throw new HttpException('GROQ_API_KEY missing', HttpStatus.BAD_REQUEST);
-    }
-
-    const offices: LawOffice[] = await this.persist.find(city, type, limit);
-
-    if (!offices.length) {
-      throw new HttpException('Brak danych w bazie', HttpStatus.NOT_FOUND);
-    }
-
+    const offices = await this.fetchOffices(city, type, limit);
     const prompt = this.buildPrompt(offices);
 
     const body = {
@@ -44,8 +31,11 @@ export class AnalysisService {
       messages: [
         {
           role: 'system',
-          content:
-            'Pomiń rozumowanie. Najpierw napisz zdanie o rekrodach które otrzymałeś - ile, lokalizacja, o czym. Następnie stwórz zwięzłe (dokładnie 2 zdania) podsumowanie opinii klientów o kancelariach. Pisz po polsku. Max 300 znaków.',
+          content: `
+            Odpowiedz dokładnie dwoma zdaniami po polsku.
+            Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} ${type} (dostosuj to słowo "${type}" do składni zdania) rekordów z ${city}."
+            W drugim: Zwięzłe podsumowanie opinii.
+          `,
         },
         { role: 'user', content: prompt },
       ],
@@ -54,28 +44,88 @@ export class AnalysisService {
     };
 
     const { data } = await firstValueFrom(
-      this.http.post(this.endpoint, body, {
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      }),
+      this.http.post(this.endpoint, body, this.headers()),
     );
 
-    const summary =
-      data.choices?.[0]?.message?.content?.trim() ?? 'Brak odpowiedzi AI';
-
-    return { summary };
+    const raw = data.choices?.[0]?.message?.content ?? '';
+    return { summary: raw.split('[END]')[0].trim() };
   }
 
-  /* ---------------------- helpers ---------------------- */
+  /* ----------------  NOWY CHAT  ---------------- */
+  async chat(
+    city: string,
+    type: string,
+    limit: number,
+    question: string,
+  ): Promise<{ answer: string }> {
+    if (!question?.trim())
+      throw new HttpException('Puste pytanie', HttpStatus.BAD_REQUEST);
 
-  /** Buduje zwięzły prompt z ograniczoną liczbą rekordów. */
+    const offices = await this.fetchOffices(city, type, limit);
+    const prompt = this.buildPrompt(offices);
+
+    const body = {
+      model: this.model,
+      messages: [
+        {
+          role: 'system',
+          content: `
+            Odpowiadasz rzeczowo i zwięźle po polsku, bazując wyłącznie na danych przesłanych
+            przez użytkownika (lista kancelarii poniżej). Nie ujawniasz
+            swojego procesu myślowego ani tagów. Maks 300 znaków.
+          `,
+        },
+        {
+          role: 'system',
+          name: 'database_dump',
+          content: prompt,
+        },
+        { role: 'user', content: question },
+      ],
+      max_tokens: 1000,
+      temperature: 0.3,
+    };
+
+    const { data } = await firstValueFrom(
+      this.http.post(this.endpoint, body, this.headers()),
+    );
+
+    const answer = data.choices?.[0]?.message?.content?.trim() ?? '';
+    return { answer };
+  }
+
+  /* ----------------  helpers  ---------------- */
+  private headers() {
+    return {
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    };
+  }
+
+  private async fetchOffices(
+    city: string,
+    type: string,
+    limit: number,
+  ): Promise<LawOffice[]> {
+    if (!this.apiKey)
+      throw new HttpException('GROQ_API_KEY missing', HttpStatus.BAD_REQUEST);
+
+    const offices = await this.persist.find(city, type, limit);
+    if (!offices.length)
+      throw new HttpException(
+        'Brak danych w bazie – odśwież scraper',
+        HttpStatus.NOT_FOUND,
+      );
+    return offices;
+  }
+
   private buildPrompt(offices: LawOffice[]): string {
     return offices
       .map(
-        (o, idx) =>
-          `[${idx + 1}] ${o.title} – ocena ${o.rating} (${o.reviews} opinii)`,
+        (o, i) =>
+          `[${i + 1}] ${o.title} – ocena ${o.rating} (${o.reviews} opinii)`,
       )
       .join('\n');
   }

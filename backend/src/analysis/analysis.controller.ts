@@ -2,7 +2,9 @@
 import {
   Controller,
   Get,
+  Post,
   Query,
+  Body,
   DefaultValuePipe,
   ParseIntPipe,
 } from '@nestjs/common';
@@ -12,13 +14,7 @@ import { AnalysisService } from './analysis.service';
 export class AnalysisController {
   constructor(private readonly service: AnalysisService) {}
 
-  /**
-   * Zwraca skrócone podsumowanie opinii o kancelariach.
-   *
-   * @param city  Miasto (domyślnie „warszawa”)
-   * @param type  Typ kancelarii (domyślnie „adwokacka”)
-   * @param limit Maksymalna liczba rekordów przekazanych do AI (domyślnie 100)
-   */
+  /* skrócone podsumowanie (dotychczas) */
   @Get()
   summarize(
     @Query('city') city = 'warszawa',
@@ -26,5 +22,16 @@ export class AnalysisController {
     @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit = 100,
   ) {
     return this.service.summarize(city, type, limit);
+  }
+
+  /*  chat z AI  */
+  @Post('chat')
+  chat(
+    @Body('city') city = 'warszawa',
+    @Body('type') type = 'adwokacka',
+    @Body('question') question: string,
+    @Body('limit', new DefaultValuePipe(100), ParseIntPipe) limit = 100,
+  ) {
+    return this.service.chat(city, type, limit, question);
   }
 }

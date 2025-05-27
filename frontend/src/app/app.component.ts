@@ -3,20 +3,34 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+
+/* pod-komponenty */
 import { LawOfficesComponent } from './law-offices/law-offices.component';
+import { LawOfficesChartsComponent } from './analytics/law-offices-charts.component';
+import { AiChatComponent } from './features/ai-chat/ai-chat.component';
 
 interface AiResponse {
   summary: string;
 }
 
+type Tab = 'summary' | 'charts' | 'chat' | 'list';
+
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, LawOfficesComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    LawOfficesComponent,
+    LawOfficesChartsComponent,
+    AiChatComponent,
+  ],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
-  /* ---------- formularz ---------- */
+  private readonly apiBase = 'http://localhost:3000';
+
+  /* --- selektory --- */
   cities = ['poznan', 'warszawa', 'krakow', 'wroclaw', 'gdansk'];
   officeTypes = [
     { value: 'adwokacka', label: 'Adwokacka' },
@@ -31,15 +45,21 @@ export class AppComponent {
   selectedType = this.officeTypes[0].value;
   selectedLimit = this.limits[0];
 
-  /* ---------- wyniki ---------- */
+  /* --- dane --- */
   aiSummary = '';
+  offices: any[] = []; // <- przekazywane do listy i wykresów
+  loadingSummary = false;
   aiThoughts = '';
-  loading = false;
+
+  /* --- UI --- */
+  tabs: Tab[] = ['summary', 'charts', 'chat', 'list'];
+  activeTab: Tab = 'summary';
 
   constructor(private http: HttpClient) {}
 
+  /* pobranie podsumowania + listy kancelarii */
   analyze(): void {
-    this.loading = true;
+    this.loadingSummary = true;
 
     const params = {
       city: this.selectedCity,
@@ -47,22 +67,34 @@ export class AppComponent {
       limit: this.selectedLimit,
     };
 
+    /* 1) podsumowanie */
     this.http
-      .get<AiResponse>('/api/analysis', { params })
+      .get<AiResponse>(`${this.apiBase}/api/analysis`, { params })
       .subscribe({
         next: ({ summary }) => {
-          /* oddziel sekcję <think> … </think> od właściwego podsumowania */
-          const thoughtMatch = summary.match(/<think>([\s\S]*?)<\/think>/i);
-          this.aiThoughts = thoughtMatch ? thoughtMatch[1].trim() : '';
-          this.aiSummary = summary
-            .replace(/<think>[\s\S]*?<\/think>/i, '')
-            .trim();
+          const reg = /<think>([\s\S]*?)<\/think>/i;
+          const match = summary.match(reg);
+          this.aiThoughts = match ? match[1].trim() : '';
+          this.aiSummary = summary.replace(reg, '').trim();
         },
         error: () => {
           this.aiSummary = 'Błąd podczas analizy AI';
           this.aiThoughts = '';
         },
       })
-      .add(() => (this.loading = false));
+      .add(() => (this.loadingSummary = false));
+
+    /* 2) lista kancelarii do listy + wykresów */
+    this.http
+      .get<any[]>(
+        `${this.apiBase}/api/cities/${this.selectedCity}/law-offices`,
+        {
+          params: { type: this.selectedType, limit: this.selectedLimit },
+        }
+      )
+      .subscribe({
+        next: (data) => (this.offices = data),
+        error: () => (this.offices = []),
+      });
   }
 }
