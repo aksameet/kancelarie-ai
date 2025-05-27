@@ -28,6 +28,7 @@
     "@nestjs/platform-express": "^11.1.2",
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/typeorm": "^11.0.0",
+    "crc-32": "^1.2.2",
     "dotenv": "^16.5.0",
     "pg": "^8.16.0",
     "reflect-metadata": "^0.2.2",

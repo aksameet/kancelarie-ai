@@ -1,3 +1,7 @@
+/* ──────────────────────────────────────────────────────────────
+   src/analysis/analysis.service.ts
+   Wersja  “pełna baza + kompaktowe formaty CSV / DICT / DELTA”
+   ────────────────────────────────────────────────────────────── */
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -5,10 +9,13 @@ import { firstValueFrom } from 'rxjs';
 import { LawOfficePersistService } from '../law-offices/law-office-persist.service';
 import { LawOffice } from '../law-offices/law-office.entity';
 
+/* util do budowy promptu z trzema trybami */
+import { buildPrompt, PromptMode } from './build-prompt';
+
 @Injectable()
 export class AnalysisService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly apiKey = process.env.GROQ_API_KEY!;
+  private readonly apiKey = process.env.GROQ_API_KEY ?? '';
   private readonly model =
     process.env.GROQ_MODEL ?? 'deepseek-r1-distill-llama-70b';
 
@@ -17,14 +24,25 @@ export class AnalysisService {
     private readonly persist: LawOfficePersistService,
   ) {}
 
-  /* ----------------  dotychczasowy skrót  ---------------- */
+  /* ------------------------------------------------------------
+     1) PODSUMOWANIE  – dokładnie 2 zdania
+     ------------------------------------------------------------ */
   async summarize(
     city: string,
     type: string,
     limit: number,
   ): Promise<{ summary: string }> {
     const offices = await this.fetchOffices(city, type, limit);
-    const prompt = this.buildPrompt(offices);
+
+    /* wybór najbardziej kompaktowego formatu */
+    const mode =
+      offices.length > 2_000
+        ? PromptMode.DELTA
+        : offices.length > 200
+          ? PromptMode.DICT_ID
+          : PromptMode.CSV;
+
+    const prompt = buildPrompt(offices, mode);
 
     const body = {
       model: this.model,
@@ -48,10 +66,12 @@ export class AnalysisService {
     );
 
     const raw = data.choices?.[0]?.message?.content ?? '';
-    return { summary: raw.split('[END]')[0].trim() };
+    return { summary: raw.replace(/\[END]$/i, '').trim() };
   }
 
-  /* ----------------  NOWY CHAT  ---------------- */
+  /* ------------------------------------------------------------
+     2) CHAT  – dowolne pytania
+     ------------------------------------------------------------ */
   async chat(
     city: string,
     type: string,
@@ -62,7 +82,15 @@ export class AnalysisService {
       throw new HttpException('Puste pytanie', HttpStatus.BAD_REQUEST);
 
     const offices = await this.fetchOffices(city, type, limit);
-    const prompt = this.buildPrompt(offices);
+
+    const mode =
+      offices.length > 2_000
+        ? PromptMode.DELTA
+        : offices.length > 200
+          ? PromptMode.DICT_ID
+          : PromptMode.CSV;
+
+    const prompt = buildPrompt(offices, mode);
 
     const body = {
       model: this.model,
@@ -70,10 +98,10 @@ export class AnalysisService {
         {
           role: 'system',
           content: `
-            Odpowiadasz rzeczowo i zwięźle po polsku, bazując wyłącznie na danych przesłanych
-            przez użytkownika (lista kancelarii poniżej). Nie ujawniasz
-            swojego procesu myślowego ani tagów. Maks 300 znaków.
-          `,
+Odpowiadasz zwięźle po polsku
+bazując WYŁĄCZNIE na danych przesłanych w kolejnej wiadomości
+(system:name="database_dump").
+          `.trim(),
         },
         {
           role: 'system',
@@ -82,19 +110,20 @@ export class AnalysisService {
         },
         { role: 'user', content: question },
       ],
+      temperature: 0.1,
       max_tokens: 1000,
-      temperature: 0.3,
     };
 
     const { data } = await firstValueFrom(
       this.http.post(this.endpoint, body, this.headers()),
     );
 
-    const answer = data.choices?.[0]?.message?.content?.trim() ?? '';
-    return { answer };
+    return { answer: data.choices?.[0]?.message?.content?.trim() ?? '' };
   }
 
-  /* ----------------  helpers  ---------------- */
+  /* ------------------------------------------------------------
+     helpers
+     ------------------------------------------------------------ */
   private headers() {
     return {
       headers: {
@@ -119,14 +148,5 @@ export class AnalysisService {
         HttpStatus.NOT_FOUND,
       );
     return offices;
-  }
-
-  private buildPrompt(offices: LawOffice[]): string {
-    return offices
-      .map(
-        (o, i) =>
-          `[${i + 1}] ${o.title} – ocena ${o.rating} (${o.reviews} opinii)`,
-      )
-      .join('\n');
   }
 }
