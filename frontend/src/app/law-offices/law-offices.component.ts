@@ -5,11 +5,12 @@ import { catchError, of } from 'rxjs';
 
 import { LawOfficeService } from '../services/law-office.service';
 import { LawOffice } from '../models/law-office.model';
+import { LawOfficesChartsComponent } from '../analytics/law-offices-charts.component';
 
 @Component({
   selector: 'app-law-offices',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, LawOfficesChartsComponent],
   templateUrl: './law-offices.component.html',
 })
 export class LawOfficesComponent {
@@ -17,6 +18,7 @@ export class LawOfficesComponent {
   private _city = 'poznan';
   private _type = 'adwokacka';
   private _limit = 20;
+  showCharts = false;
 
   public Math = Math;
 

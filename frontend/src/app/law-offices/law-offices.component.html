@@ -1,5 +1,15 @@
 <!-- src/app/law-offices/law-offices.component.html -->
 <div class="py-8 max-w-5xl mx-auto">
+  <button
+    class="px-4 py-2 bg-indigo-600 text-white rounded-lg mb-6"
+    (click)="showCharts = !showCharts"
+    [disabled]="!offices.length"
+  >
+    {{ showCharts ? "Ukryj wykresy" : "Pokaż wykresy" }}
+  </button>
+
+  <law-offices-charts *ngIf="showCharts" [offices]="offices">
+  </law-offices-charts>
   <!-- Nagłówek -->
   <h2
     class="text-4xl font-extrabold text-indigo-600 mb-8 text-center tracking-tight"

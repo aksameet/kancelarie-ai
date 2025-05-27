@@ -7,10 +7,12 @@ import { LawOffice } from '../models/law-office.model';
 })
 export class LawOfficeService {
   constructor(private http: HttpClient) {}
+  private readonly api = 'http://localhost:3000'; // <- Nest
 
   getOffices(city: string, type: string, limit: number) {
-    return this.http.get<LawOffice[]>(`/api/cities/${city}/law-offices`, {
-      params: { type, limit },
-    });
+    return this.http.get<LawOffice[]>(
+      `${this.api}/api/cities/${city}/law-offices`,
+      { params: { type, limit } }
+    );
   }
 }

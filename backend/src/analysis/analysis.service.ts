@@ -45,11 +45,11 @@ export class AnalysisService {
         {
           role: 'system',
           content:
-            'Najpierw napisz zdanie o rekrodach które otrzymałeś - ile, lokalizacja, o czym. Następnie stwórz zwięzłe (dokładnie 2 zdania) podsumowanie opinii klientów o kancelariach. Pisz po polsku. Max 300 znaków.',
+            'Pomiń rozumowanie. Najpierw napisz zdanie o rekrodach które otrzymałeś - ile, lokalizacja, o czym. Następnie stwórz zwięzłe (dokładnie 2 zdania) podsumowanie opinii klientów o kancelariach. Pisz po polsku. Max 300 znaków.',
         },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 400,
+      max_tokens: 1000,
       temperature: 0.3,
     };
 
