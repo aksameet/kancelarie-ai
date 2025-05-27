@@ -6,6 +6,7 @@ import { HttpModule } from '@nestjs/axios';
 
 import { LawOfficesModule } from './law-offices/law-offices.module';
 import { LawOffice } from './law-offices/law-office.entity';
+import { AnalysisModule } from './analysis/analysis.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { LawOffice } from './law-offices/law-office.entity';
     HttpModule,
     ScheduleModule.forRoot(),
     LawOfficesModule,
+    AnalysisModule,
   ],
 })
 export class AppModule {}

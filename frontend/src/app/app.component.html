@@ -21,6 +21,18 @@
     <option *ngFor="let n of limits" [value]="n">{{ n }}</option>
   </select>
 
+  <button
+    class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
+    (click)="analyze()"
+  >
+    Analiza AI
+  </button>
+
+  <div *ngIf="aiSummary" class="mt-4 p-4 border rounded bg-gray-50">
+    <h2 class="font-semibold mb-2">Podsumowanie AI:</h2>
+    <p>{{ aiSummary }}</p>
+  </div>
+
   <app-law-offices
     [city]="selectedCity"
     [officeType]="selectedType"

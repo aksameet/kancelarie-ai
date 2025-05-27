@@ -15,6 +15,6 @@ import { LawOfficesController } from './law-offices.controller';
   ],
   providers: [LawOfficesService, LawOfficePersistService],
   controllers: [LawOfficesController],
-  exports: [LawOfficesService], // opcjonalnie
+  exports: [LawOfficesService, LawOfficePersistService],
 })
 export class LawOfficesModule {}
