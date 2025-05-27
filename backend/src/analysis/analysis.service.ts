@@ -10,36 +10,44 @@ import { LawOffice } from '../law-offices/law-office.entity';
 export class AnalysisService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly apiKey = process.env.GROQ_API_KEY!;
+  private readonly model =
+    process.env.GROQ_MODEL ?? 'deepseek-r1-distill-llama-70b';
 
   constructor(
     private readonly http: HttpService,
     private readonly persist: LawOfficePersistService,
   ) {}
 
-  async summarize(city = 'warszawa', type = 'adwokacka'): Promise<string> {
-    if (!this.apiKey)
+  /**
+   * Pobiera kancelarie z bazy, przycina do `limit` rekordów
+   * i zwraca podsumowanie AI.
+   */
+  async summarize(
+    city = 'warszawa',
+    type = 'adwokacka',
+    limit = 100,
+  ): Promise<{ summary: string }> {
+    if (!this.apiKey) {
       throw new HttpException('GROQ_API_KEY missing', HttpStatus.BAD_REQUEST);
+    }
 
-    /* pobierz z bazy do 1000 rekordów */
-    const offices: LawOffice[] = await this.persist.find(city, type, 1000);
+    const offices: LawOffice[] = await this.persist.find(city, type, limit);
 
-    if (!offices.length)
-      throw new HttpException(
-        'Brak danych w bazie – odśwież scraper',
-        HttpStatus.NOT_FOUND,
-      );
+    if (!offices.length) {
+      throw new HttpException('Brak danych w bazie', HttpStatus.NOT_FOUND);
+    }
 
-    const fileContents = this.buildPrompt(offices);
+    const prompt = this.buildPrompt(offices);
 
     const body = {
-      model: 'deepseek-r1-distill-llama-70b',
+      model: this.model,
       messages: [
         {
           role: 'system',
           content:
-            'Jesteś analitykiem rynku usług prawnych. Stwórz zwięzłe (3-4 zdania) podsumowanie opinii klientów o kancelariach w danym mieście. Pisz po polsku.',
+            'Najpierw napisz zdanie o rekrodach które otrzymałeś - ile, lokalizacja, o czym. Następnie stwórz zwięzłe (dokładnie 2 zdania) podsumowanie opinii klientów o kancelariach. Pisz po polsku. Max 300 znaków.',
         },
-        { role: 'user', content: fileContents },
+        { role: 'user', content: prompt },
       ],
       max_tokens: 400,
       temperature: 0.3,
@@ -54,15 +62,20 @@ export class AnalysisService {
       }),
     );
 
-    return data.choices?.[0]?.message?.content?.trim() ?? 'Brak odpowiedzi AI';
+    const summary =
+      data.choices?.[0]?.message?.content?.trim() ?? 'Brak odpowiedzi AI';
+
+    return { summary };
   }
 
   /* ---------------------- helpers ---------------------- */
+
+  /** Buduje zwięzły prompt z ograniczoną liczbą rekordów. */
   private buildPrompt(offices: LawOffice[]): string {
     return offices
       .map(
-        (o) =>
-          `[${o.position}] ${o.title} – ocena ${o.rating} (${o.reviews} opinii)`,
+        (o, idx) =>
+          `[${idx + 1}] ${o.title} – ocena ${o.rating} (${o.reviews} opinii)`,
       )
       .join('\n');
   }

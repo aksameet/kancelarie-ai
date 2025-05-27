@@ -1,11 +1,16 @@
-<div class="p-6 max-w-4xl mx-auto">
-  <h2 class="text-3xl font-extrabold text-gray-800 mb-6 text-center">
+<!-- src/app/law-offices/law-offices.component.html -->
+<div class="py-8 max-w-5xl mx-auto">
+  <!-- Nagłówek -->
+  <h2
+    class="text-4xl font-extrabold text-indigo-600 mb-8 text-center tracking-tight"
+  >
     Kancelarie w {{ city | titlecase }}
   </h2>
 
-  <div *ngIf="loading" class="flex justify-center mb-6">
+  <!-- Loader -->
+  <div *ngIf="loading" class="flex justify-center mb-10">
     <svg
-      class="animate-spin h-8 w-8 text-blue-500"
+      class="animate-spin h-10 w-10 text-indigo-500"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
@@ -17,19 +22,24 @@
         r="10"
         stroke="currentColor"
         stroke-width="4"
-      ></circle>
+      />
       <path
         class="opacity-75"
         fill="currentColor"
         d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-      ></path>
+      />
     </svg>
   </div>
 
-  <div *ngIf="error" class="mb-6 text-center text-red-600 font-medium">
+  <!-- Błąd -->
+  <div
+    *ngIf="error && !loading"
+    class="mb-6 text-center text-red-600 font-semibold"
+  >
     {{ error }}
   </div>
 
+  <!-- Brak wyników -->
   <div
     *ngIf="!loading && !error && offices.length === 0"
     class="mb-6 text-center text-gray-500"
@@ -37,33 +47,70 @@
     Brak wyników dla wybranego miasta.
   </div>
 
+  <!-- Lista kancelarii -->
   <ul
     *ngIf="!loading && !error && offices.length"
-    class="grid grid-cols-1 md:grid-cols-2 gap-6"
+    class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3"
   >
     <li
       *ngFor="let o of offices"
-      class="bg-white p-5 rounded-lg shadow hover:shadow-lg transition"
+      class="group relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition"
     >
-      <img
-        *ngIf="o.thumbnail"
-        [src]="o.thumbnail"
-        alt="{{ o.title }}"
-        class="h-16 mb-2"
-      />
-      <h3 class="text-xl font-semibold text-gray-900 mb-2">{{ o.title }}</h3>
-      <p class="text-sm text-gray-700 mb-1">
-        <span class="font-medium">Ocena:</span> {{ o.rating }}
-        <span class="text-gray-500">({{ o.reviews }} opinii)</span>
+      <!-- Logo / domyślna ikona -->
+      <div class="flex items-center justify-center h-20 mb-4">
+        <img
+          [src]="o.thumbnail || '/assets/office-placeholder.svg'"
+          [alt]="o.title"
+          class="h-full object-contain"
+        />
+      </div>
+
+      <h3
+        class="text-lg font-semibold text-gray-900 group-hover:text-indigo-700 transition mb-3 text-center"
+      >
+        {{ o.title }}
+      </h3>
+
+      <!-- Ocena -->
+      <div class="flex items-center justify-center mb-1">
+        <ng-container *ngFor="let s of [1, 2, 3, 4, 5]; let i = index">
+          <svg
+            *ngIf="i + 1 <= Math.round(o.rating)"
+            class="h-5 w-5 fill-amber-400"
+            viewBox="0 0 20 20"
+          >
+            <polygon
+              points="10 1.5 12.95 7.03 19 7.64 14.5 11.97 15.9 18 10 14.9 4.1 18 5.5 11.97 1 7.64 7.05 7.03"
+            />
+          </svg>
+          <svg
+            *ngIf="i + 1 > Math.round(o.rating)"
+            class="h-5 w-5 fill-gray-300"
+            viewBox="0 0 20 20"
+          >
+            <polygon
+              points="10 1.5 12.95 7.03 19 7.64 14.5 11.97 15.9 18 10 14.9 4.1 18 5.5 11.97 1 7.64 7.05 7.03"
+            />
+          </svg>
+        </ng-container>
+        <span class="ml-2 text-sm font-medium text-gray-700">
+          {{ o.rating }}
+        </span>
+      </div>
+      <p class="text-xs text-gray-500 mb-4 text-center">
+        {{ o.reviews }} opinii
       </p>
-      <p class="text-sm text-gray-700 mb-3">
-        <span class="font-medium">Adres:</span> {{ o.address }}
-      </p>
+
+      <!-- Adres -->
+      <p class="text-sm text-gray-700 mb-4 text-center">{{ o.address }}</p>
+
+      <!-- CTA -->
       <a
         *ngIf="o.website"
         [href]="o.website"
         target="_blank"
-        class="inline-block bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded hover:bg-blue-600 transition"
+        rel="noopener"
+        class="block w-full text-center bg-indigo-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-indigo-700 focus-visible:outline focus-visible:outline-indigo-600 transition"
       >
         Strona WWW
       </a>

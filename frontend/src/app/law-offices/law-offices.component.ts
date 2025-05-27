@@ -18,6 +18,8 @@ export class LawOfficesComponent {
   private _type = 'adwokacka';
   private _limit = 20;
 
+  public Math = Math;
+
   /* ───────── INPUTS with SETTERS ───────── */
   @Input()
   set city(val: string) {

@@ -2,8 +2,12 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { LawOfficesComponent } from './law-offices/law-offices.component';
 import { HttpClient } from '@angular/common/http';
+import { LawOfficesComponent } from './law-offices/law-offices.component';
+
+interface AiResponse {
+  summary: string;
+}
 
 @Component({
   selector: 'app-root',
@@ -12,6 +16,7 @@ import { HttpClient } from '@angular/common/http';
   templateUrl: './app.component.html',
 })
 export class AppComponent {
+  /* ---------- formularz ---------- */
   cities = ['poznan', 'warszawa', 'krakow', 'wroclaw', 'gdansk'];
   officeTypes = [
     { value: 'adwokacka', label: 'Adwokacka' },
@@ -20,24 +25,44 @@ export class AppComponent {
     { value: 'komornicza', label: 'Komornicza' },
     { value: 'podatkowa', label: 'Podatkowa' },
   ];
+  limits = [20, 60, 100];
+
   selectedCity = this.cities[0];
   selectedType = this.officeTypes[0].value;
-  limits = [20, 60, 100];
-  selectedLimit = 20;
+  selectedLimit = this.limits[0];
+
+  /* ---------- wyniki ---------- */
   aiSummary = '';
+  aiThoughts = '';
+  loading = false;
 
   constructor(private http: HttpClient) {}
 
-  analyze() {
-    /* city, type pobierz wg Twojej logiki / selectów */
-    const city = this.selectedCity || 'warszawa';
-    const type = this.selectedType || 'adwokacka';
+  analyze(): void {
+    this.loading = true;
+
+    const params = {
+      city: this.selectedCity,
+      type: this.selectedType,
+      limit: this.selectedLimit,
+    };
 
     this.http
-      .get<{ result: string }>(`/api/analysis?city=${city}&type=${type}`)
+      .get<AiResponse>('/api/analysis', { params })
       .subscribe({
-        next: (res: any) => (this.aiSummary = res),
-        error: () => (this.aiSummary = 'Błąd podczas analizy AI'),
-      });
+        next: ({ summary }) => {
+          /* oddziel sekcję <think> … </think> od właściwego podsumowania */
+          const thoughtMatch = summary.match(/<think>([\s\S]*?)<\/think>/i);
+          this.aiThoughts = thoughtMatch ? thoughtMatch[1].trim() : '';
+          this.aiSummary = summary
+            .replace(/<think>[\s\S]*?<\/think>/i, '')
+            .trim();
+        },
+        error: () => {
+          this.aiSummary = 'Błąd podczas analizy AI';
+          this.aiThoughts = '';
+        },
+      })
+      .add(() => (this.loading = false));
   }
 }

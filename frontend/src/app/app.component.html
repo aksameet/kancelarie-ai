@@ -1,38 +1,101 @@
 <!-- src/app/app.component.html -->
-<div class="p-4 max-w-xl mx-auto space-y-4">
-  <div>
-    <label class="font-medium">Typ kancelarii:</label>
-    <select [(ngModel)]="selectedType" class="border p-2 w-full">
-      <option *ngFor="let t of officeTypes" [value]="t.value">
-        {{ t.label }}
-      </option>
-    </select>
-  </div>
+<div class="max-w-3xl mx-auto px-4 py-6 space-y-8">
+  <!-- Nagłówek -->
+  <h1 class="text-3xl font-extrabold text-center text-indigo-700">
+    Analiza kancelarii prawnych
+  </h1>
 
-  <div>
-    <label class="font-medium">Miasto:</label>
-    <select [(ngModel)]="selectedCity" class="border p-2 w-full">
-      <option *ngFor="let c of cities" [value]="c">{{ c | titlecase }}</option>
-    </select>
-  </div>
+  <!-- Formularz wyborów -->
+  <form class="grid gap-6 md:grid-cols-3" (ngSubmit)="analyze()">
+    <!-- Typ kancelarii -->
+    <div class="flex flex-col">
+      <label for="officeType" class="mb-1 font-medium">Typ kancelarii</label>
+      <select
+        id="officeType"
+        name="type"
+        [(ngModel)]="selectedType"
+        class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+      >
+        <option *ngFor="let t of officeTypes" [value]="t.value">
+          {{ t.label }}
+        </option>
+      </select>
+    </div>
 
-  <label>Ilość wyników:</label>
-  <select [(ngModel)]="selectedLimit" class="border p-2 w-full">
-    <option *ngFor="let n of limits" [value]="n">{{ n }}</option>
-  </select>
+    <!-- Miasto -->
+    <div class="flex flex-col">
+      <label for="city" class="mb-1 font-medium">Miasto</label>
+      <select
+        id="city"
+        name="city"
+        [(ngModel)]="selectedCity"
+        class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+      >
+        <option *ngFor="let c of cities" [value]="c">
+          {{ c | titlecase }}
+        </option>
+      </select>
+    </div>
 
-  <button
-    class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded"
-    (click)="analyze()"
-  >
-    Analiza AI
-  </button>
+    <!-- Limit -->
+    <div class="flex flex-col">
+      <label for="limit" class="mb-1 font-medium">Ilość rekordów</label>
+      <select
+        id="limit"
+        name="limit"
+        [(ngModel)]="selectedLimit"
+        class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+      >
+        <option *ngFor="let n of limits" [value]="n">{{ n }}</option>
+      </select>
+    </div>
 
-  <div *ngIf="aiSummary" class="mt-4 p-4 border rounded bg-gray-50">
-    <h2 class="font-semibold mb-2">Podsumowanie AI:</h2>
+    <!-- Przycisk -->
+    <div class="md:col-span-3 flex justify-center">
+      <button
+        type="submit"
+        class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition disabled:opacity-60"
+        [disabled]="loading"
+      >
+        <!-- spinner -->
+        <svg *ngIf="loading" class="h-5 w-5 animate-spin" viewBox="0 0 24 24">
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+            fill="none"
+          />
+          <path
+            class="opacity-75"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            fill="currentColor"
+          />
+        </svg>
+        <span>{{ loading ? "Analizuję…" : "Analiza AI" }}</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Podsumowanie AI -->
+  <section *ngIf="aiSummary" class="bg-gray-50 border rounded-lg p-6 shadow-sm">
+    <h2 class="text-lg font-semibold mb-3">Podsumowanie AI</h2>
     <p>{{ aiSummary }}</p>
-  </div>
 
+    <!-- Ukryte „myśli” modelu -->
+    <details *ngIf="aiThoughts" class="mt-4">
+      <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+        Pokaż myśli modelu
+      </summary>
+      <pre class="whitespace-pre-wrap mt-2 text-sm text-gray-700">{{
+        aiThoughts
+      }}</pre>
+    </details>
+  </section>
+
+  <!-- Lista kancelarii -->
   <app-law-offices
     [city]="selectedCity"
     [officeType]="selectedType"
