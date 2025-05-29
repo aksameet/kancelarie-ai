@@ -8,8 +8,7 @@ import { buildPrompt, PromptMode } from '../build-prompt';
 export class AnalysisSummarizeService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly apiKey = process.env.GROQ_API_KEY!;
-  private readonly model =
-    process.env.GROQ_MODEL ?? 'deepseek-r1-distill-llama-70b';
+  private readonly model = process.env.GROQ_MODEL;
 
   constructor(
     private readonly http: HttpService,
@@ -37,9 +36,9 @@ export class AnalysisSummarizeService {
         {
           role: 'system',
           content: `
-          Odpowiedz dokładnie dwoma zdaniami po polsku.
-          Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} ${type}...".
-          W drugim: Zwięzłe podsumowanie opinii.
+          Odpowiedz dokładnie dwoma zdaniami poprawną polszczyzną.
+          Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} ${type} z ${city}".
+          W drugim: podsumowanie danych max 300 znaków.
         `,
         },
         { role: 'user', content: prompt },

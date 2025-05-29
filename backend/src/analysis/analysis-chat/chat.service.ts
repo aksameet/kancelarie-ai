@@ -12,8 +12,7 @@ import { buildPrompt, PromptMode } from '../build-prompt';
 export class ChatService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly apiKey = process.env.GROQ_API_KEY!;
-  private readonly model =
-    process.env.GROQ_MODEL ?? 'deepseek-r1-distill-llama-70b';
+  private readonly model = process.env.GROQ_MODEL;
 
   constructor(
     private readonly http: HttpService,
