@@ -1,5 +1,4 @@
-// src/app/law-offices/law-offices.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { catchError, of } from 'rxjs';
 
@@ -13,66 +12,44 @@ import { LawOfficesChartsComponent } from '../analytics/law-offices-charts.compo
   imports: [CommonModule, LawOfficesChartsComponent],
   templateUrl: './law-offices.component.html',
 })
-export class LawOfficesComponent {
-  /* ───────── PRIVATE BACKING FIELDS ───────── */
-  private _city = 'poznan';
-  private _type = 'adwokacka';
-  private _limit = 20;
-  showCharts = false;
+export class LawOfficesComponent implements OnChanges {
+  /** Inputs from parent */
+  @Input() city!: string;
+  @Input() officeType!: string;
+  @Input() resultLimit!: number;
 
-  public Math = Math;
-
-  /* ───────── INPUTS with SETTERS ───────── */
-  @Input()
-  set city(val: string) {
-    if (val !== this._city) {
-      this._city = val;
-      this.fetch();
-    }
-  }
-  get city() {
-    return this._city;
-  }
-
-  @Input()
-  set officeType(val: string) {
-    if (val !== this._type) {
-      this._type = val;
-      this.fetch();
-    }
-  }
-  get officeType() {
-    return this._type;
-  }
-
-  @Input()
-  set resultLimit(val: number | string) {
-    const num = +val || 20;
-    if (num !== this._limit) {
-      this._limit = num;
-      this.fetch();
-    }
-  }
-  get resultLimit() {
-    return this._limit;
-  }
-
-  /* ───────── VIEW MODEL ───────── */
+  /** View model */
   offices: LawOffice[] = [];
   loading = false;
   error = '';
 
-  constructor(private svc: LawOfficeService) {
-    this.fetch(); // pierwszy raz
+  showCharts = false;
+  public Math = Math;
+
+  constructor(private svc: LawOfficeService) {}
+
+  /** Lifecycle hook: fetch when any input changes */
+  ngOnChanges(changes: SimpleChanges): void {
+    if (
+      changes['city']?.currentValue ||
+      changes['officeType']?.currentValue ||
+      changes['resultLimit']?.currentValue
+    ) {
+      this.fetch();
+    }
   }
 
-  /* ───────── CORE ───────── */
-  private fetch() {
+  /** Core fetch logic */
+  private fetch(): void {
+    if (!this.city || !this.officeType || !this.resultLimit) {
+      return;
+    }
+
     this.loading = true;
     this.error = '';
 
     this.svc
-      .getOffices(this._city, this._type, this._limit)
+      .getOffices(this.city, this.officeType, this.resultLimit)
       .pipe(
         catchError((err) => {
           this.error = err.message ?? 'Błąd pobierania';

@@ -55,6 +55,13 @@ export class AppComponent {
   tabs: Tab[] = ['summary', 'charts', 'chat', 'list'];
   activeTab: Tab = 'summary';
 
+  get buttonLabel(): string {
+    if (this.loadingSummary) {
+      return 'Analizuję…';
+    }
+    return this.offices.length ? 'Odśwież dane' : 'Załaduj dane';
+  }
+
   constructor(private http: HttpClient) {}
 
   /* pobranie podsumowania + listy kancelarii */

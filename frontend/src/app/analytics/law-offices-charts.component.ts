@@ -1,19 +1,19 @@
-// src/app/analytics/law-offices-charts.component.ts
-import { Component, Input, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import {
-  ChartData,
-  ChartOptions,
-  ChartType,
-  ChartConfiguration,
-} from 'chart.js';
+  Component,
+  Input,
+  OnChanges,
+  AfterViewChecked,
+  ChangeDetectorRef,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ChartData, ChartOptions } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 
 interface Office {
   title: string;
   rating: number;
   reviews: number;
-  specialization?: string; // jeśli masz w encji
+  specialization?: string;
 }
 
 @Component({
@@ -30,8 +30,7 @@ interface Office {
           [data]="histData"
           [options]="histOptions"
           [type]="'bar'"
-        >
-        </canvas>
+        ></canvas>
       </div>
 
       <!-- Scatter rating-vs-reviews -->
@@ -42,8 +41,7 @@ interface Office {
           [data]="scatterData"
           [options]="scatterOptions"
           [type]="'scatter'"
-        >
-        </canvas>
+        ></canvas>
       </div>
 
       <!-- Top-N kancelarii -->
@@ -54,8 +52,7 @@ interface Office {
           [data]="topData"
           [options]="topOptions"
           [type]="'bar'"
-        >
-        </canvas>
+        ></canvas>
       </div>
 
       <!-- Udział specjalizacji -->
@@ -69,15 +66,14 @@ interface Office {
           [data]="pieData"
           [options]="pieOptions"
           [type]="'doughnut'"
-        >
-        </canvas>
+        ></canvas>
       </div>
     </div>
   `,
 })
-export class LawOfficesChartsComponent implements OnChanges {
+export class LawOfficesChartsComponent implements OnChanges, AfterViewChecked {
   @Input() offices: Office[] = [];
-  @Input() topN = 10;
+  @Input() topN = 0;
 
   /* ---------- histogram ---------- */
   histData!: ChartData<'bar'>;
@@ -97,9 +93,19 @@ export class LawOfficesChartsComponent implements OnChanges {
   scatterOptions: ChartOptions<'scatter'> = {
     scales: {
       x: { title: { display: true, text: 'Liczba opinii' } },
-      y: { title: { display: true, text: 'Ocena' }, min: 3, max: 5 },
+      y: { title: { display: true, text: 'Ocena' }, min: 3, max: 5.5 },
     },
-    plugins: { legend: { display: false } },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            const data = context.raw as { x: number; y: number; title: string };
+            return `${data.title}: ${data.y}★ (${data.x} opinii)`;
+          },
+        },
+      },
+    },
   };
 
   /* ---------- top-N ---------- */
@@ -116,10 +122,19 @@ export class LawOfficesChartsComponent implements OnChanges {
     plugins: { legend: { position: 'bottom' } },
   };
 
-  ngOnChanges(): void {
-    if (!this.offices.length) return;
+  constructor(private cdr: ChangeDetectorRef) {}
 
-    /* 1) Histogram ocen (przedziały co 0.5) */
+  ngOnChanges(): void {
+    if (!this.offices.length) {
+      // zeruj dane, jeśli brak kancelarii
+      this.histData = { labels: [], datasets: [] };
+      this.scatterData = { datasets: [] };
+      this.topData = { labels: [], datasets: [] };
+      this.pieData = { labels: [], datasets: [] };
+      return;
+    }
+
+    // 1) Histogram ocen
     const bins = [3.0, 3.5, 4.0, 4.5, 5.0];
     const counts = bins.map(
       (b, i) =>
@@ -129,42 +144,36 @@ export class LawOfficesChartsComponent implements OnChanges {
             : o.rating >= b && o.rating < bins[i + 1]
         ).length
     );
-
     this.histData = {
       labels: bins.map((b) => b.toFixed(1)),
-      datasets: [
-        { data: counts, backgroundColor: '#6366f1' }, // indigo-500
-      ],
+      datasets: [{ data: counts }],
     };
 
-    /* 2) Scatter: opinie vs ocena */
+    // 2) Scatter: opinie vs ocena
     this.scatterData = {
       datasets: [
         {
-          label: 'Kancelaria',
-          data: this.offices.map((o) => ({ x: o.reviews, y: o.rating })),
-          pointRadius: 4,
-          backgroundColor: '#f59e0b', // amber-500
+          label: 'Kancelarie',
+          data: this.offices.map((o) => ({
+            x: o.reviews,
+            y: o.rating,
+            title: o.title,
+          })),
+          pointRadius: 6,
         },
       ],
     };
 
-    /* 3) Top-N według ratingu */
+    // 3) Top-N według ratingu
     const top = [...this.offices]
       .sort((a, b) => b.rating - a.rating)
       .slice(0, this.topN);
-
     this.topData = {
       labels: top.map((o) => o.title),
-      datasets: [
-        {
-          data: top.map((o) => o.rating),
-          backgroundColor: '#10b981', // emerald-500
-        },
-      ],
+      datasets: [{ data: top.map((o) => o.rating) }],
     };
 
-    /* 4) Pie: udział specjalizacji */
+    // 4) Pie: udział specjalizacji
     const map = new Map<string, number>();
     this.offices.forEach((o) =>
       map.set(
@@ -174,11 +183,12 @@ export class LawOfficesChartsComponent implements OnChanges {
     );
     this.pieData = {
       labels: [...map.keys()],
-      datasets: [
-        {
-          data: [...map.values()],
-        },
-      ],
+      datasets: [{ data: [...map.values()] }],
     };
+  }
+
+  ngAfterViewChecked(): void {
+    // wymuszenie detekcji i uaktualnienia wykresów
+    this.cdr.detectChanges();
   }
 }

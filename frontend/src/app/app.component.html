@@ -57,7 +57,7 @@
         class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition disabled:opacity-60"
         [disabled]="loadingSummary"
       >
-        <span>{{ loadingSummary ? "Analizuję…" : "Odśwież dane" }}</span>
+        <span>{{ buttonLabel }}</span>
       </button>
     </div>
   </form>
@@ -113,6 +113,7 @@
   <law-offices-charts
     *ngIf="activeTab === 'charts'"
     [offices]="offices"
+    [topN]="selectedLimit"
     class="block"
   ></law-offices-charts>
 
