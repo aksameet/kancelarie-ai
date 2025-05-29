@@ -6,7 +6,8 @@ import { HttpModule } from '@nestjs/axios';
 
 import { LawOfficesModule } from './law-offices/law-offices.module';
 import { LawOffice } from './law-offices/law-office.entity';
-import { AnalysisModule } from './analysis/analysis.module';
+import { AnalysisSummarizeModule } from './analysis/analysis-summarize/analysis-summarize.module';
+import { ChatModule } from './analysis/analysis-chat/chat.module';
 
 @Module({
   imports: [
@@ -16,14 +17,15 @@ import { AnalysisModule } from './analysis/analysis.module';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       entities: [LawOffice],
-      synchronize: true, // DEV only – w prod migracje!
+      synchronize: true,
       ssl: { rejectUnauthorized: false },
     }),
 
     HttpModule,
     ScheduleModule.forRoot(),
     LawOfficesModule,
-    AnalysisModule,
+    AnalysisSummarizeModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

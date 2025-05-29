@@ -31,7 +31,7 @@ export class AppComponent {
   private readonly apiBase = 'http://localhost:3000';
 
   /* --- selektory --- */
-  cities = ['poznan', 'warszawa', 'krakow', 'wroclaw', 'gdansk'];
+  cities = ['warszawa', 'poznan', 'krakow', 'wroclaw', 'gdansk'];
   officeTypes = [
     { value: 'adwokacka', label: 'Adwokacka' },
     { value: 'radcowska', label: 'Radcowska' },
