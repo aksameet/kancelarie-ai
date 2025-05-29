@@ -17,7 +17,8 @@ export class ChatController {
     @Body('type') type = 'adwokacka',
     @Body('question') question: string,
     @Body('limit', new DefaultValuePipe(100), ParseIntPipe) limit = 100,
+    @Body('conversationId') conversationId?: string,
   ) {
-    return this.service.chat(city, type, limit, question);
+    return this.service.chat(city, type, limit, question, conversationId);
   }
 }

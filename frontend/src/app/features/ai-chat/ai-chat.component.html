@@ -43,7 +43,7 @@
         </svg>
       </ng-container>
       <ng-template #realAnswer>
-        <p>{{ m.content }}</p>
+        <markdown [data]="m.content"></markdown>
         <details *ngIf="m.thoughts">
           <summary class="text-xs text-gray-500 cursor-pointer">
             Pokaż myśli modelu

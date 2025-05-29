@@ -35,10 +35,15 @@ export class AnalysisSummarizeService {
       messages: [
         {
           role: 'system',
+          name: 'language_instruction',
+          content: 'Odpowiadaj zawsze poprawną polszczyzną.',
+        },
+        {
+          role: 'system',
           content: `
-          Odpowiedz dokładnie dwoma zdaniami poprawną polszczyzną.
-          Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} ${type} z ${city}".
-          W drugim: podsumowanie danych max 300 znaków.
+          Odpowiedz dokładnie dwoma zdaniami.
+          Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} (podaj poprawne odmiany) ${type} z ${city}".
+          W drugim: podsumowanie danych z bazy max 600 znaków.
         `,
         },
         { role: 'user', content: prompt },

@@ -8,11 +8,19 @@ import { ChatSessionService } from 'src/chat/chat-session.service';
 import { LawOfficePersistService } from 'src/law-offices/law-office-persist.service';
 import { buildPrompt, PromptMode } from '../build-prompt';
 
+interface AiErrorPayload {
+  status: number;
+  error: string;
+  message: string;
+  retryAfter?: number;
+  originalError?: any;
+}
+
 @Injectable()
 export class ChatService {
   private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
   private readonly apiKey = process.env.GROQ_API_KEY!;
-  private readonly model = process.env.GROQ_MODEL;
+  private readonly model = process.env.GROQ_MODEL!;
 
   constructor(
     private readonly http: HttpService,
@@ -28,14 +36,23 @@ export class ChatService {
     conversationId?: string,
   ): Promise<{ answer: string; conversationId: string }> {
     if (!question?.trim()) {
-      throw new HttpException('Puste pytanie', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { status: 400, error: 'BAD_REQUEST', message: 'Puste pytanie' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    // 1) Pobierz historię albo przygotuj nową
     const msgs = conversationId ? this.sessions.get(conversationId) : [];
+    const hasDump = msgs.some(
+      (m: any) => m.role === 'system' && m.name === 'database_dump',
+    );
 
-    // 2) Przy nowej sesji załaduj dump danych
-    if (!conversationId) {
+    if (!hasDump) {
+      msgs.push({
+        role: 'system',
+        name: 'language_instruction',
+        content: 'Odpowiadaj zawsze po polsku.',
+      });
       const offices = await this.fetchOffices(city, type, limit);
       const prompt = buildPrompt(
         offices,
@@ -52,7 +69,6 @@ export class ChatService {
       });
     }
 
-    // 3) Dodaj pytanie użytkownika
     msgs.push({ role: 'user', content: question });
 
     let responseData: any;
@@ -71,37 +87,59 @@ export class ChatService {
       );
       responseData = data;
     } catch (err) {
-      // Obsługa błędów HTTP z Axios
       if ((err as AxiosError).isAxiosError) {
         const axiosErr = err as AxiosError;
-        const resp = axiosErr.response;
-        // komunikat z Groq/OpenAI lub domyślny
-        const groqMsg = (resp?.data as any)?.message || axiosErr.message;
-        // najpierw spróbuj z nagłówka Retry-After
-        const headerRetry = resp?.headers?.['retry-after'];
-        // jeśli brak nagłówka, parsuj z tekstu "in XXs"
-        const fromMsg = /in\s*([\d.]+)s/i.exec(groqMsg);
+        const resp = axiosErr.response!;
+        const originalMsg = (resp.data as any)?.message || axiosErr.message;
+        const headerRetry = resp.headers?.['retry-after'];
+        const fromMsg = /in\s*([\d.]+)s/i.exec(originalMsg);
         const retryAfter = headerRetry
           ? Math.ceil(+headerRetry)
           : fromMsg
             ? Math.ceil(parseFloat(fromMsg[1]))
             : undefined;
 
-        // rzucenie wyjątku z payloadem { message, retryAfter }
-        throw new HttpException(
-          { message: groqMsg, retryAfter },
-          resp?.status || HttpStatus.TOO_MANY_REQUESTS,
-        );
+        let payload: AiErrorPayload = {
+          status: resp.status,
+          error: HttpStatus[resp.status] || 'ERROR',
+          message: originalMsg,
+          retryAfter,
+          originalError: resp.data,
+        };
+
+        if (resp.status === HttpStatus.TOO_MANY_REQUESTS) {
+          payload = {
+            status: 429,
+            error: 'TOO_MANY_REQUESTS',
+            message:
+              'Przekroczono limit zapytań do AI. Spróbuj ponownie za chwilę.',
+            retryAfter,
+            originalError: resp.data,
+          };
+        } else if (
+          resp.status === HttpStatus.GATEWAY_TIMEOUT ||
+          resp.status === 524
+        ) {
+          payload = {
+            status: 504,
+            error: 'GATEWAY_TIMEOUT',
+            message: 'Upłynął czas oczekiwania na odpowiedź od AI.',
+            originalError: resp.data,
+          };
+        }
+
+        throw new HttpException(payload, resp.status);
       }
 
-      // Inny, nieoczekiwany błąd
-      throw new HttpException(
-        'Nieznany błąd przy wywołaniu AI',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
+      const payload: AiErrorPayload = {
+        status: 500,
+        error: 'INTERNAL_SERVER_ERROR',
+        message: 'Nieznany błąd przy wywołaniu AI',
+        originalError: err,
+      };
+      throw new HttpException(payload, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    // 4) Przetwarzanie odpowiedzi i zapis w sesji
     const reply = responseData.choices[0].message;
     msgs.push(reply);
 
@@ -129,10 +167,12 @@ export class ChatService {
   private async fetchOffices(city: string, type: string, limit: number) {
     const offices = await this.persist.find(city, type, limit);
     if (!offices.length) {
-      throw new HttpException(
-        'Brak danych – odśwież scraper',
-        HttpStatus.NOT_FOUND,
-      );
+      const payload: AiErrorPayload = {
+        status: 404,
+        error: 'NOT_FOUND',
+        message: 'Brak danych – odśwież scraper',
+      };
+      throw new HttpException(payload, HttpStatus.NOT_FOUND);
     }
     return offices;
   }

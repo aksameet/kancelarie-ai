@@ -10,11 +10,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription, interval } from 'rxjs';
 import { ChatService, ChatMessage } from '../../services/chat.service';
+import { MarkdownModule } from 'ngx-markdown';
 
 @Component({
   selector: 'ai-chat',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MarkdownModule],
   templateUrl: './ai-chat.component.html',
   styles: [':host { @apply flex flex-col h-[32rem] border rounded-lg p-4 }'],
 })
