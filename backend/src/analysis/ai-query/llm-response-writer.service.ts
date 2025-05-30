@@ -18,7 +18,7 @@ export class LlmResponseWriterService {
     history?: string,
   ): Promise<string> {
     const context = history ? `History: ${history}.` : '';
-    const prompt = `${context} User asked: "${userQ}". The following is the result of a database query related to that question: Result: ${JSON.stringify(data)}.Generate a short and clear answer in Polish based on this result.`;
+    const prompt = `${context} User asked: "${userQ}". The following is the result of a database query related to that question: Result: ${JSON.stringify(data)}. Generate a short and clear answer in Polish based on this result.`;
 
     console.log(prompt);
     const response = await firstValueFrom(

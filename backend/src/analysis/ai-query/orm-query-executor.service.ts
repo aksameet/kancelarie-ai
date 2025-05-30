@@ -4,6 +4,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { Repository, MoreThan, LessThan, Like, Not, IsNull, In } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LawOffice } from 'src/law-offices/law-office.entity';
+import { Raw } from 'typeorm';
 
 @Injectable()
 export class OrmQueryExecutorService {
@@ -57,10 +58,21 @@ export class OrmQueryExecutorService {
         'Not',
         'IsNull',
         'In',
+        'Raw',
         `return repo.${pseudo};`,
       );
-      return await fn(this.repo, MoreThan, LessThan, Like, Not, IsNull, In);
+      return await fn(
+        this.repo,
+        MoreThan,
+        LessThan,
+        Like,
+        Not,
+        IsNull,
+        In,
+        Raw,
+      );
     } catch (e) {
+      console.log(`Error executing ORM query: ${e.message}`);
       throw new BadRequestException(
         `Nie udało się wykonać zapytania: ${e.message}`,
       );
