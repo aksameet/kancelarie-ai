@@ -14,7 +14,7 @@ interface AiResponse {
   summary: string;
 }
 
-type Tab = 'summary' | 'charts' | 'chat' | 'list';
+type Tab = 'summary' | 'charts' | 'chat' | 'query' | 'list';
 
 @Component({
   selector: 'app-root',
@@ -54,8 +54,25 @@ export class AppComponent {
   aiThoughts = '';
 
   /* --- UI --- */
-  tabs: Tab[] = ['summary', 'charts', 'chat', 'list'];
+  tabs: Tab[] = ['summary', 'charts', 'chat', 'query', 'list'];
   activeTab: Tab = 'summary';
+
+  tabLabel(tab: (typeof this.tabs)[number]): string {
+    switch (tab) {
+      case 'summary':
+        return 'Podsumowanie';
+      case 'charts':
+        return 'Wykresy';
+      case 'chat':
+        return 'Chat AI';
+      case 'query':
+        return 'Zapytania AI';
+      case 'list':
+        return 'Lista';
+      default:
+        return tab;
+    }
+  }
 
   get buttonLabel(): string {
     if (this.loadingSummary) {

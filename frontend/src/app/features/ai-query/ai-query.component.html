@@ -1,36 +1,83 @@
-<div *ngIf="cooldown > 0" style="margin-bottom: 0.5rem; color: #a00">
-  Odczekaj {{ cooldown }}s przed kolejnym pytaniem
-</div>
-
-<div #chatContainer style="flex: 1; overflow-y: auto; margin-bottom: 0.5rem">
-  <div
-    *ngFor="let m of messages"
-    [ngClass]="{ 'text-right': m.role === 'user' }"
+<!-- 1) Banner cooldown -->
+<div
+  *ngIf="cooldownSeconds > 0"
+  class="flex items-center gap-2 mb-2 text-sm text-red-600 bg-red-100 p-2 rounded"
+>
+  <svg
+    class="animate-spin h-4 w-4"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
   >
-    <markdown *ngIf="m.role === 'ai'" [data]="m.content"></markdown>
-    <div *ngIf="m.role === 'user'">{{ m.content }}</div>
-  </div>
+    <circle cx="12" cy="12" r="10" class="opacity-25"></circle>
+    <path d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" class="opacity-75"></path>
+  </svg>
+  Proszę odczekać {{ cooldownSeconds }}s przed kolejnym pytaniem
 </div>
 
-<form (ngSubmit)="send()" style="display: flex; gap: 0.5rem">
+<!-- 2) Okno czatu -->
+<div
+  #chatContainer
+  class="flex-1 overflow-y-auto space-y-4 pr-2 bg-gray-50 rounded-lg p-3"
+>
+  <ng-container *ngFor="let m of messages">
+    <!-- wiadomość użytkownika -->
+    <div
+      *ngIf="m.role === 'user'"
+      class="self-end bg-indigo-50 p-3 rounded-lg text-indigo-900 max-w-[80%]"
+    >
+      {{ m.content }}
+    </div>
+
+    <!-- odpowiedź AI -->
+    <div
+      *ngIf="m.role === 'ai'"
+      class="bg-white p-3 rounded-lg shadow max-w-[80%]"
+    >
+      <ng-container *ngIf="m.content === '__loading__'; else realAnswer">
+        <svg class="animate-spin h-5 w-5 text-gray-500" viewBox="0 0 24 24">
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+            fill="none"
+          />
+          <path
+            class="opacity-75"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            fill="currentColor"
+          />
+        </svg>
+      </ng-container>
+      <ng-template #realAnswer>
+        <markdown [data]="m.content"></markdown>
+      </ng-template>
+    </div>
+  </ng-container>
+</div>
+
+<!-- 3) Input + button -->
+<form class="mt-4 flex gap-2" (ngSubmit)="send()">
   <input
     [(ngModel)]="draft"
     name="draft"
+    [disabled]="loading || cooldownSeconds > 0"
+    required
     placeholder="Zadaj pytanie…"
-    [disabled]="loading || cooldown > 0"
-    style="flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px"
+    class="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50"
   />
   <button
     type="submit"
-    [disabled]="loading || !draft.trim() || cooldown > 0"
-    style="
-      padding: 0.5rem 1rem;
-      background: #38a;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-    "
+    [disabled]="loading || !draft.trim() || cooldownSeconds > 0"
+    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-50 transition"
   >
-    Wyślij
+    <ng-container *ngIf="cooldownSeconds > 0; else sendLabel">
+      Odczekaj {{ cooldownSeconds }}s
+    </ng-container>
+    <ng-template #sendLabel>Wyślij</ng-template>
   </button>
 </form>

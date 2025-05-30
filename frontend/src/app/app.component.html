@@ -73,15 +73,7 @@
       }"
       class="px-4 py-2 rounded-lg capitalize"
     >
-      {{
-        t === "summary"
-          ? "Podsumowanie"
-          : t === "charts"
-          ? "Wykresy"
-          : t === "chat"
-          ? "Chat"
-          : "Lista"
-      }}
+      {{ tabLabel(t) }}
     </button>
   </nav>
 
@@ -134,5 +126,5 @@
     [resultLimit]="selectedLimit"
   ></app-law-offices>
 
-  <ai-query></ai-query>
+  <ai-query class="block" *ngIf="activeTab === 'query'"></ai-query>
 </div>
