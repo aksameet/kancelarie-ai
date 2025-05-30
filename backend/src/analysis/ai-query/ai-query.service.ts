@@ -29,6 +29,7 @@ export class AiQueryService {
 
     // 1) Spróbuj wygenerować ORMy
     const pseudo = await this.gen.toOrmQuery(question, history);
+
     if (pseudo === 'CLARIFY') {
       const msg = 'Proszę doprecyzuj pytanie';
       this.conv.append(cid, question, msg);
@@ -53,7 +54,6 @@ export class AiQueryService {
     try {
       console.log(`Executing ORM query: ${pseudo}`);
       const data = await this.exec.execute(pseudo);
-      console.log(`Query result: ${JSON.stringify(data)}`, data);
       const answer = await this.write.fromResult(question, data, history);
       this.conv.append(cid, question, answer);
       return { answer, conversationId: cid };

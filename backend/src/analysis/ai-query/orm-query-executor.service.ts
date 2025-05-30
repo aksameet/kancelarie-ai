@@ -14,17 +14,26 @@ export class OrmQueryExecutorService {
   ) {}
 
   async execute(pseudo: string): Promise<any> {
-    pseudo = pseudo.replace(/^repo\./, '').trim();
+    pseudo = pseudo.trim();
 
-    if (pseudo.startsWith('PSEUDO-code:')) {
-      pseudo = pseudo.replace(/^PSEUDO-code:\s*/, '');
+    // 🧠 Jeśli LLM dodało <think>...</think> lub inne tagi — usuń je
+    pseudo = pseudo
+      .replace(/<think>([\s\S]*?)<\/think>/gi, (_, thought) => {
+        return '';
+      })
+      .trim();
+
+    // 🧠 Wyciągnij tylko fragment z PSEUDO-code:
+    const codeMatch = pseudo.match(/PSEUDO-code:\s*[:]?([\s\S]*)/i);
+    if (codeMatch) {
+      pseudo = codeMatch[1].trim();
     }
+
+    // Usuń repo. prefix jeśli nadal obecny
+    pseudo = pseudo.replace(/^repo\./, '').trim();
 
     const allowedPrefixes = [
       'find(',
-      'findOne(',
-      'findBy(',
-      'findOneBy(',
       'count(',
       'findAndCount(',
       'find({',
@@ -44,12 +53,14 @@ export class OrmQueryExecutorService {
       allowedKeywords.some((kw) => pseudo.includes(kw));
 
     if (!isAllowed) {
+      console.log('Unsupported query type:', pseudo);
       throw new BadRequestException(
         `Unsupported query type. Only safe read-only queries like find(), count(), groupBy, distinct(), etc. are allowed.`,
       );
     }
 
     try {
+      console.log('Execute:', pseudo);
       const fn = new Function(
         'repo',
         'MoreThan',
@@ -72,7 +83,7 @@ export class OrmQueryExecutorService {
         Raw,
       );
     } catch (e) {
-      console.log(`Error executing ORM query: ${e.message}`);
+      console.log(`ERROR executing ORM query: ${e.message}`);
       throw new BadRequestException(
         `Nie udało się wykonać zapytania: ${e.message}`,
       );

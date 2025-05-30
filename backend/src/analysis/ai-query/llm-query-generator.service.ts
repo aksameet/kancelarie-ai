@@ -43,11 +43,25 @@ export class LlmQueryGeneratorService {
       "rozliczenie podatkowe", "pit" → "tax_preparation"`;
 
     const mappingPrompt = `If the user question contains legal domain keywords (e.g. "prawo rodzinne", "prawo spadkowe"), use the following mapping to convert them into appropriate database filters:
-      Legal domain mapping: ${legal_services}
+      Legal domain mapping: type_ids: ${legal_services} in which case the proper TypeORM would be Raw((alias) => '\\'mapped_value\\' = ANY(' + alias + ')').
       If no clear mapping is found or the domain is ambiguous, respond with: CLARIFY`;
 
+    const best = `If the user asks for:
+      - the best law firm
+      - the top rated law firm
+      - the most trusted lawyer
+      then:
+
+      → Do not just order by rating. Instead:
+      1. Add where: { reviews: MoreThan(20), rating: MoreThan(4.7) }
+      2. Order by: rating DESC, then reviews DESC
+      3. Optionally: prioritize offices with multiple type_ids (broad expertise)
+      4. Always use take: 1 to return a single best result
+      5. Use find({ where: ..., order: ..., take: 1 })
+      6. If you use type_ids, use Raw((alias) => '\\'mapped_value\\' = ANY(' + alias + ')) to match any of the types`;
+
     const prompt =
-      `You are an assistant that converts user questions into TypeORM calls (pseudo-code). The database has the following structure: { "id": 534, "created_at": "2025..", "updated_at": "2025..", "city": "wars..", "specialization": "adwo..", "position": 1, "title": "Kanc..", "place_id": "ChIJ..", "data_id": "0x47..", "data_cid": "5037..", "rating": "4.9..", "reviews": 122, "address": "Obro..", "phone": "+48 ..", "website": "http..", "type_id": "tria..", "types": [ "Tria..", "Gene.." ], "type_ids": [ "tria..", "gene.." ], "thumbnail": "http..", "serpapi_thumbnail": "http..", "operating_hours": { "friday": "Open..", "monday": "Open..", "sunday": "Open..", "tuesday": "Open..", "saturday": "Open..", "thursday": "Open..", "wednesday": "Open.." }, "unsupported_extensions": [], "service_options": { "onsite_services": true, "online_appointments": true }, "reviews_link": "http..", "place_id_search": "http..", "open_state": "Open..", "hours": "Open.." }. Use only **exact** values from the lists below (match spelling and case exactly): - Possible cities: ${cities.join(', ')} - Possible specializations: ${specializations.join(', ')}. ${mappingPrompt}. Check all user prompts and check if there is anything in that prompt that can be mapped to the database structure above. If there is, convert the question to a TypeORM pseudo-code query that can be executed against the LawOffice database. If the question related to database is too general, respond exactly with: CLARIFY. If the question is not related to the LawOffice database, respond with: NONE. User asks: "${userQ}". Answer *only*: - PSEUDO-code: find(...), find(...order...), find(...skip...), distinct(...), groupBy, findOne(...), findBy(...), findOneBy(...), count(...), findAndCount(...) (Respond only with **valid** TypeORM pseudo-code, for example:- count({ where: { city: "..." } })- find({ where: { specialization: '...' }, order: { rating: 'DESC' }, take: 10 })- findAndCount({ where: { open_state: 'Open 24 hours' } }))), - or: NONE, - or: CLARIFY. `.trim();
+      `You are an assistant that converts user questions into TypeORM calls (pseudo-code). The database has the following structure: { "id": 534, "created_at": "2025..", "updated_at": "2025..", "city": "wars..", "specialization": "adwo..", "position": 1, "title": "Kanc..", "place_id": "ChIJ..", "data_id": "0x47..", "data_cid": "5037..", "rating": "4.9..", "reviews": 122, "address": "Obro..", "phone": "+48 ..", "website": "http..", "type_id": "tria..", "types": [ "Tria..", "Gene.." ], "type_ids": [ "tria..", "gene.." ], "thumbnail": "http..", "serpapi_thumbnail": "http..", "operating_hours": { "friday": "Open..", "monday": "Open..", "sunday": "Open..", "tuesday": "Open..", "saturday": "Open..", "thursday": "Open..", "wednesday": "Open.." }, "unsupported_extensions": [], "service_options": { "onsite_services": true, "online_appointments": true }, "reviews_link": "http..", "place_id_search": "http..", "open_state": "Open..", "hours": "Open.." }. Use only **exact** values from the lists below (match spelling and case exactly): - Possible cities: ${cities.join(', ')} - Possible specializations: ${specializations.join(', ')}. ${mappingPrompt}. ${best}. Check all user prompts and check if there is anything in that prompt that can be mapped to the database structure above. If there is, convert the question to a TypeORM pseudo-code query that can be executed against the LawOffice database. If the question related to database is too general, respond exactly with: CLARIFY. If the question is not related to the LawOffice database, respond with: NONE. User asks: "${userQ}". Answer *only*: - PSEUDO-code: find(...), find(...order...), find(...skip...), distinct(...), groupBy, count(...), findAndCount(...) (Respond only with **valid** TypeORM pseudo-code, for example:- count({ where: { city: "..." } })- find({ where: { '...': '...' }, order: { rating: 'DESC' }, take: 10 })- findAndCount({ where: { open_state: 'Open 24 hours' } }))), - or: NONE, - or: CLARIFY. `.trim();
 
     const res = await firstValueFrom(
       this.http.post(
@@ -64,9 +78,24 @@ export class LlmQueryGeneratorService {
       ),
     );
 
-    const out = res.data.choices[0].message.content.trim();
-    if (out === 'NONE') return 'NONE';
-    if (out === 'CLARIFY') return 'CLARIFY';
+    let out = res.data.choices[0].message.content.trim();
+    console.log('LLM Output:\n', out);
+
+    // Usuń <think>...</think>
+    out = out.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    // Pobierz ostatnią istotną linię
+    const lastLine = out
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .pop()
+      ?.toUpperCase();
+
+    // Sprawdź jednoznaczne odpowiedzi
+    if (lastLine === 'NONE') return 'NONE';
+    if (lastLine === 'CLARIFY') return 'CLARIFY';
+
     return out;
   }
 }
