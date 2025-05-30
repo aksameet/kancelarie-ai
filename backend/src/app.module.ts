@@ -8,6 +8,7 @@ import { LawOfficesModule } from './law-offices/law-offices.module';
 import { LawOffice } from './law-offices/law-office.entity';
 import { AnalysisSummarizeModule } from './analysis/analysis-summarize/analysis-summarize.module';
 import { ChatModule } from './analysis/analysis-chat/chat.module';
+import { AiQueryModule } from './analysis/ai-query/ai-query.module';
 
 @Module({
   imports: [
@@ -26,6 +27,8 @@ import { ChatModule } from './analysis/analysis-chat/chat.module';
     LawOfficesModule,
     AnalysisSummarizeModule,
     ChatModule,
+
+    AiQueryModule,
   ],
 })
 export class AppModule {}

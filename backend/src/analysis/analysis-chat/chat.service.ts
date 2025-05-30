@@ -4,7 +4,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { AxiosError } from 'axios';
-import { ChatSessionService } from 'src/chat/chat-session.service';
+import { ChatSessionService } from 'src/analysis/analysis-chat/chat-session.service';
 import { LawOfficePersistService } from 'src/law-offices/law-office-persist.service';
 import { buildPrompt, PromptMode } from '../build-prompt';
 

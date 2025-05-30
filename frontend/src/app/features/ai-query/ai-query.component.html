@@ -1,0 +1,36 @@
+<div *ngIf="cooldown > 0" style="margin-bottom: 0.5rem; color: #a00">
+  Odczekaj {{ cooldown }}s przed kolejnym pytaniem
+</div>
+
+<div #chatContainer style="flex: 1; overflow-y: auto; margin-bottom: 0.5rem">
+  <div
+    *ngFor="let m of messages"
+    [ngClass]="{ 'text-right': m.role === 'user' }"
+  >
+    <markdown *ngIf="m.role === 'ai'" [data]="m.content"></markdown>
+    <div *ngIf="m.role === 'user'">{{ m.content }}</div>
+  </div>
+</div>
+
+<form (ngSubmit)="send()" style="display: flex; gap: 0.5rem">
+  <input
+    [(ngModel)]="draft"
+    name="draft"
+    placeholder="Zadaj pytanie…"
+    [disabled]="loading || cooldown > 0"
+    style="flex: 1; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px"
+  />
+  <button
+    type="submit"
+    [disabled]="loading || !draft.trim() || cooldown > 0"
+    style="
+      padding: 0.5rem 1rem;
+      background: #38a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+    "
+  >
+    Wyślij
+  </button>
+</form>

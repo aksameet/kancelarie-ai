@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 import { LawOfficesComponent } from './law-offices/law-offices.component';
 import { LawOfficesChartsComponent } from './analytics/law-offices-charts.component';
 import { AiChatComponent } from './features/ai-chat/ai-chat.component';
+import { AiQueryComponent } from './features/ai-query/ai-query.component';
 
 interface AiResponse {
   summary: string;
@@ -24,6 +25,7 @@ type Tab = 'summary' | 'charts' | 'chat' | 'list';
     LawOfficesComponent,
     LawOfficesChartsComponent,
     AiChatComponent,
+    AiQueryComponent,
   ],
   templateUrl: './app.component.html',
 })
