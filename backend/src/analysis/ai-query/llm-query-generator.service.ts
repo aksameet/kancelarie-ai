@@ -12,18 +12,20 @@ export class LlmQueryGeneratorService {
 
   async toOrmQuery(userQ: string): Promise<string> {
     const prompt = `
-You are a system that converts natural‐language questions into valid TypeORM calls on the LawOffice repository.
+You convert natural‐language questions into TypeORM repository calls on LawOffice.
 
-Available methods: 
-- repo.find({ where: { /* conditions */ }, order: { field: 'ASC'|'DESC' }, take: N })
-- repo.count({ where: { /* conditions */ } })
-- repo.findOne({ where: { /* conditions */ } })
+**Allowed methods**:
+  - repo.find({...})
+  - repo.findOne({...})
+  - repo.count({...})
+  - repo.findAndCount({...})
 
-Fields: id, city, specialization, rating, reviews, address, phone, types, open_state.
+**Fields**: id, city, specialization, rating, reviews, address, phone, types, open_state.
+
+**Return only** the call body, e.g. "find({ where: { city: 'Warszawa' }, take: 3 })".
 
 User question: "${userQ}"
-
-Return ONLY the method call body (e.g. "find({ where: { city: 'Warszawa', rating: MoreThan(4.5) }, take: 3 })"). Do not wrap in backticks.
+Pseudo‐query:
 `;
 
     const { data } = await firstValueFrom(

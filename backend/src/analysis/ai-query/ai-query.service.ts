@@ -12,13 +12,16 @@ export class AiQueryService {
   ) {}
 
   async run(question: string): Promise<{ answer: string }> {
-    // 1) LLM generuje pseudokod TypeORM
+    // 1) wygeneruj pseudo‐query
     const pseudo = await this.gen.toOrmQuery(question);
 
-    // 2) Wykonaj w bazie (bezpiecznie)
+    // 2) wykonaj
     const data = await this.exec.execute(pseudo);
 
-    // 3) LLM generuje końcową odpowiedź na podstawie danych
+    // 3) sformatuj odpowiedź – teraz data może być:
+    //    - array of LawOffice
+    //    - number (dla count)
+    //    - { items, count } dla findAndCount
     const answer = await this.write.fromResult(question, data);
 
     return { answer };

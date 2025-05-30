@@ -1,4 +1,5 @@
 // src/ai-query/orm-query-executor.service.ts
+
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { Repository, MoreThan, LessThan, Like, Not, IsNull, In } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -12,12 +13,13 @@ export class OrmQueryExecutorService {
   ) {}
 
   async execute(pseudo: string): Promise<any> {
-    // tylko find / findOne / count
-    if (!/^(find|findOne|count)\(/.test(pseudo)) {
-      throw new BadRequestException('Unsupported query type');
+    // rozszerzona walidacja – dopuszczamy find, findOne, count i findAndCount
+    if (!/^(find\(|findOne\(|count\(|findAndCount\()/.test(pseudo.trim())) {
+      throw new BadRequestException(
+        `Unsupported query type: only find(), findOne(), count(), findAndCount() allowed.`,
+      );
     }
 
-    // wstrzykujemy teraz także IsNull, In itp.
     const fn = new Function(
       'repo',
       'MoreThan',
@@ -26,24 +28,25 @@ export class OrmQueryExecutorService {
       'Not',
       'IsNull',
       'In',
+      // wykonujemy repo.<pseudo>
       `return repo.${pseudo};`,
     );
 
+    let result;
     try {
-      const result = await fn(
-        this.repo,
-        MoreThan,
-        LessThan,
-        Like,
-        Not,
-        IsNull,
-        In,
-      );
-      return result;
+      result = await fn(this.repo, MoreThan, LessThan, Like, Not, IsNull, In);
     } catch (e) {
       throw new BadRequestException(
         `Nie udało się wykonać zapytania: ${e.message}`,
       );
     }
+
+    // jeśli to findAndCount → zwróć obiekt { items, count }
+    if (pseudo.trim().startsWith('findAndCount(')) {
+      const [items, count] = result as [LawOffice[], number];
+      return { items, count };
+    }
+
+    return result;
   }
 }
