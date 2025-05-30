@@ -1,17 +1,34 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
+
 @Injectable()
 export class LlmResponseWriterService {
   constructor(private readonly http: HttpService) {}
 
-  async fromResult(userQ: string, data: any): Promise<string> {
-    const prompt = `
-    User asked: "${userQ}".
-    Here's the query result: ${JSON.stringify(data)}
+  /**
+   * Tworzy odpowiedź bazując na wyniku zapytania do bazy.
+   * @param userQ - pytanie użytkownika
+   * @param data - wynik zapytania do bazy
+   * @param history - opcjonalna historia konwersacji do kontekstu
+   */
+  async fromResult(
+    userQ: string,
+    data: any,
+    history?: string,
+  ): Promise<string> {
+    const context = history
+      ? `Historia:
+${history}
 
-    Summarize concisely and clearly in Polish:
-    `;
+`
+      : '';
+    const prompt = `
+${context}User asked: "${userQ}".
+Here's the query result: ${JSON.stringify(data)}
+
+Summarize concisely and clearly in Polish:
+`;
 
     const response = await firstValueFrom(
       this.http.post(
@@ -31,8 +48,19 @@ export class LlmResponseWriterService {
     return response.data.choices[0].message.content.trim();
   }
 
-  async generalAnswer(userQ: string): Promise<string> {
-    const prompt = `Odpowiedz zwięźle na pytanie użytkownika po polsku: "${userQ}"`;
+  /**
+   * Odpowiada na pytanie ogólne, nie związane z bazą.
+   * @param userQ - pytanie użytkownika
+   * @param history - opcjonalna historia konwersacji do kontekstu
+   */
+  async generalAnswer(userQ: string, history?: string): Promise<string> {
+    const context = history
+      ? `Historia:
+${history}
+
+`
+      : '';
+    const prompt = `${context}Odpowiedz zwięźle na pytanie użytkownika po polsku: "${userQ}"`;
 
     const { data: res } = await firstValueFrom(
       this.http.post(

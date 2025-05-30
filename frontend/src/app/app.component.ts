@@ -66,7 +66,7 @@ export class AppComponent {
       case 'chat':
         return 'Chat AI';
       case 'query':
-        return 'Zapytania AI';
+        return 'Query AI';
       case 'list':
         return 'Lista';
       default:

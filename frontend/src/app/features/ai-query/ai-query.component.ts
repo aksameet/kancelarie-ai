@@ -48,6 +48,8 @@ export class AiQueryComponent implements AfterViewChecked, OnDestroy {
   cooldownSeconds = 0;
   private cooldownSub?: Subscription;
 
+  clarificationMode = false;
+
   constructor(private aiQuery: AiQueryService) {}
 
   ngAfterViewChecked() {
@@ -89,8 +91,9 @@ export class AiQueryComponent implements AfterViewChecked, OnDestroy {
           this.loading = false;
         })
       )
-      .subscribe(({ answer }) => {
+      .subscribe(({ answer, needsClarification }) => {
         placeholder.content = answer.trim() || '—';
+        this.clarificationMode = !!needsClarification;
       });
   }
 

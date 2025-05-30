@@ -7,6 +7,7 @@ import { AiQueryService } from './ai-query.service';
 import { LlmQueryGeneratorService } from './llm-query-generator.service';
 import { LlmResponseWriterService } from './llm-response-writer.service';
 import { OrmQueryExecutorService } from './orm-query-executor.service';
+import { ConversationService } from './conversation.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([LawOffice]), HttpModule],
@@ -16,6 +17,7 @@ import { OrmQueryExecutorService } from './orm-query-executor.service';
     LlmQueryGeneratorService,
     OrmQueryExecutorService,
     LlmResponseWriterService,
+    ConversationService,
   ],
 })
 export class AiQueryModule {}
