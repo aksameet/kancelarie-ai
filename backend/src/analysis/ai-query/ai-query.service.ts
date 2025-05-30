@@ -12,18 +12,16 @@ export class AiQueryService {
   ) {}
 
   async run(question: string): Promise<{ answer: string }> {
-    // 1) wygeneruj pseudo‐query
     const pseudo = await this.gen.toOrmQuery(question);
 
-    // 2) wykonaj
+    if (!pseudo) {
+      console.log('🟡 Nie-database zapytanie – leci general answer');
+      const answer = await this.write.generalAnswer(question);
+      return { answer };
+    }
+
     const data = await this.exec.execute(pseudo);
-
-    // 3) sformatuj odpowiedź – teraz data może być:
-    //    - array of LawOffice
-    //    - number (dla count)
-    //    - { items, count } dla findAndCount
     const answer = await this.write.fromResult(question, data);
-
     return { answer };
   }
 }

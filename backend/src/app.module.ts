@@ -27,7 +27,6 @@ import { AiQueryModule } from './analysis/ai-query/ai-query.module';
     LawOfficesModule,
     AnalysisSummarizeModule,
     ChatModule,
-
     AiQueryModule,
   ],
 })

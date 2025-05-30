@@ -1,46 +1,54 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-
 @Injectable()
 export class LlmQueryGeneratorService {
-  private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly apiKey = process.env.GROQ_API_KEY!;
-  private readonly model = process.env.GROQ_MODEL!;
-
   constructor(private readonly http: HttpService) {}
 
-  async toOrmQuery(userQ: string): Promise<string> {
+  async toOrmQuery(userQ: string): Promise<string | null> {
     const prompt = `
-You convert natural‐language questions into TypeORM repository calls on LawOffice.
+You are an assistant converting user questions into TypeORM repository calls (not real code).
 
-**Allowed methods**:
-  - repo.find({...})
-  - repo.findOne({...})
-  - repo.count({...})
-  - repo.findAndCount({...})
+🎯 Your task:
+- If the question relates to the database, return ONLY one of these calls: 
+  → find({...}), findOne({...}), count({...}), findAndCount({...})
+- NO variables, no async/await, no TypeScript/JS syntax
+- Do NOT use findOneBy, findBy, or any other method
+- If the question does NOT relate to querying the LawOffice database, reply exactly with: NONE
 
-**Fields**: id, city, specialization, rating, reviews, address, phone, types, open_state.
-
-**Return only** the call body, e.g. "find({ where: { city: 'Warszawa' }, take: 3 })".
+Fields available: id, city, specialization, rating, reviews, address, phone, types, open_state
 
 User question: "${userQ}"
-Pseudo‐query:
+
+Only respond with:
+→ a valid repository call like: count({})
+→ or the word: NONE
 `;
 
-    const { data } = await firstValueFrom(
+    const response = await firstValueFrom(
       this.http.post(
-        this.endpoint,
+        'https://api.groq.com/openai/v1/chat/completions',
         {
-          model: this.model,
+          model: process.env.GROQ_QUERY_MODEL,
           messages: [{ role: 'system', content: prompt }],
-          max_tokens: 200,
+          max_tokens: 100,
           temperature: 0,
         },
-        { headers: { Authorization: `Bearer ${this.apiKey}` } },
+        {
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        },
       ),
     );
 
-    return data.choices[0].message.content.trim();
+    const result = response.data.choices[0].message.content.trim();
+
+    if (
+      result === 'NONE' ||
+      !/^(find\(|findOne\(|count\(|findAndCount\()/.test(result)
+    ) {
+      return null;
+    }
+
+    return result;
   }
 }

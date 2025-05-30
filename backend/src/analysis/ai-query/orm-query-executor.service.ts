@@ -13,10 +13,13 @@ export class OrmQueryExecutorService {
   ) {}
 
   async execute(pseudo: string): Promise<any> {
-    // rozszerzona walidacja – dopuszczamy find, findOne, count i findAndCount
-    if (!/^(find\(|findOne\(|count\(|findAndCount\()/.test(pseudo.trim())) {
+    pseudo = pseudo.replace(/^repo\./, '').trim();
+
+    if (
+      !/^(find\(|findOne\(|findOneBy\(|count\(|findAndCount\()/.test(pseudo)
+    ) {
       throw new BadRequestException(
-        `Unsupported query type: only find(), findOne(), count(), findAndCount() allowed.`,
+        `Unsupported query type: only find(), findOne(), findOneBy(), count(), findAndCount() allowed.`,
       );
     }
 
@@ -28,25 +31,15 @@ export class OrmQueryExecutorService {
       'Not',
       'IsNull',
       'In',
-      // wykonujemy repo.<pseudo>
       `return repo.${pseudo};`,
     );
 
-    let result;
     try {
-      result = await fn(this.repo, MoreThan, LessThan, Like, Not, IsNull, In);
+      return await fn(this.repo, MoreThan, LessThan, Like, Not, IsNull, In);
     } catch (e) {
       throw new BadRequestException(
         `Nie udało się wykonać zapytania: ${e.message}`,
       );
     }
-
-    // jeśli to findAndCount → zwróć obiekt { items, count }
-    if (pseudo.trim().startsWith('findAndCount(')) {
-      const [items, count] = result as [LawOffice[], number];
-      return { items, count };
-    }
-
-    return result;
   }
 }

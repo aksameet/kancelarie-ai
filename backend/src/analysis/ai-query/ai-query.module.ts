@@ -9,10 +9,7 @@ import { LlmResponseWriterService } from './llm-response-writer.service';
 import { OrmQueryExecutorService } from './orm-query-executor.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([LawOffice]),
-    HttpModule, // do wywołań LLM
-  ],
+  imports: [TypeOrmModule.forFeature([LawOffice]), HttpModule],
   controllers: [AiQueryController],
   providers: [
     AiQueryService,

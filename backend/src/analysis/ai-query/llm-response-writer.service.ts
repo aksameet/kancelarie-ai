@@ -1,35 +1,49 @@
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
-
 @Injectable()
 export class LlmResponseWriterService {
-  private readonly endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  private readonly apiKey = process.env.GROQ_API_KEY!;
-  private readonly model = process.env.GROQ_MODEL!;
-
   constructor(private readonly http: HttpService) {}
 
   async fromResult(userQ: string, data: any): Promise<string> {
     const prompt = `
-Masz wynik zapytania do bazy (JSON). Użytkownik pyta: "${userQ}".
-Na podstawie wyników napisz zwięzłą odpowiedź po polsku.
+    User asked: "${userQ}".
+    Here's the query result: ${JSON.stringify(data)}
 
-Wynik:
-${JSON.stringify(data)}
+    Summarize concisely and clearly in Polish:
+    `;
 
-Odpowiedź:
-`;
-    const { data: res } = await firstValueFrom(
+    const response = await firstValueFrom(
       this.http.post(
-        this.endpoint,
+        'https://api.groq.com/openai/v1/chat/completions',
         {
-          model: this.model,
+          model: process.env.GROQ_RESPONSE_MODEL,
           messages: [{ role: 'system', content: prompt }],
           max_tokens: 500,
-          temperature: 0,
+          temperature: 0.1,
         },
-        { headers: { Authorization: `Bearer ${this.apiKey}` } },
+        {
+          headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+        },
+      ),
+    );
+
+    return response.data.choices[0].message.content.trim();
+  }
+
+  async generalAnswer(userQ: string): Promise<string> {
+    const prompt = `Odpowiedz zwięźle na pytanie użytkownika po polsku: "${userQ}"`;
+
+    const { data: res } = await firstValueFrom(
+      this.http.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        {
+          model: process.env.GROQ_RESPONSE_MODEL,
+          messages: [{ role: 'system', content: prompt }],
+          max_tokens: 100,
+          temperature: 0.5,
+        },
+        { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } },
       ),
     );
     return res.choices[0].message.content.trim();
