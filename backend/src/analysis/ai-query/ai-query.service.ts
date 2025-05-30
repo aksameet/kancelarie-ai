@@ -22,40 +22,28 @@ export class AiQueryService {
 
   async run(question: string, convId?: string): Promise<AiQueryResult> {
     const cid = convId || uuid();
-    const cleanedQ = question.trim();
     const history = this.conv
       .getHistory(cid)
       .map((h) => `${h.question} -> ${h.answer}`)
       .join('\n');
 
-    // 0) Obsługa prostego small-talk (powitania, sprawdzenia dostępności)
-    const simple = cleanedQ.toLowerCase();
-    const greetings = [
-      'hej',
-      'cześć',
-      'witaj',
-      'dzień dobry',
-      'siema',
-      'jesteś tam',
-      'are you there',
-    ];
-    if (greetings.includes(simple)) {
+    // 1) Spróbuj wygenerować ORMy
+    const pseudo = await this.gen.toOrmQuery(question, history);
+    if (pseudo === 'CLARIFY') {
+      const msg = 'Proszę doprecyzuj pytanie';
+      this.conv.append(cid, question, msg);
+      return { answer: msg, conversationId: cid, needsClarification: true };
+    }
+
+    if (pseudo === 'NONE') {
       const answer = await this.write.generalAnswer(question, history);
       this.conv.append(cid, question, answer);
       return { answer, conversationId: cid };
     }
 
-    // 1) Spróbuj wygenerować ORMy
-    const pseudo = await this.gen.toOrmQuery(question, history);
-    if (pseudo === 'CLARIFY') {
-      const msg =
-        'Mógłbyś/mogłabyś doprecyzować pytanie? Na przykład jakie kryteria Cię interesują.';
-      this.conv.append(cid, question, msg);
-      return { answer: msg, conversationId: cid, needsClarification: true };
-    }
-
     // 2) Jeśli nie ma mapowania do bazy, ogólna odpowiedź
     if (!pseudo) {
+      console.log(`No ORM mapping for question: "${question}"`);
       const answer = await this.write.generalAnswer(question, history);
       this.conv.append(cid, question, answer);
       return { answer, conversationId: cid };
@@ -63,7 +51,9 @@ export class AiQueryService {
 
     // 3) Wykonaj zapytanie do bazy, ale w razie błędu traktuj jako ogólne
     try {
+      console.log(`Executing ORM query: ${pseudo}`);
       const data = await this.exec.execute(pseudo);
+      console.log(`Query result: ${JSON.stringify(data)}`, data);
       const answer = await this.write.fromResult(question, data, history);
       this.conv.append(cid, question, answer);
       return { answer, conversationId: cid };

@@ -17,26 +17,17 @@ export class LlmResponseWriterService {
     data: any,
     history?: string,
   ): Promise<string> {
-    const context = history
-      ? `Historia:
-${history}
+    const context = history ? `History: ${history}.` : '';
+    const prompt = `${context} User asked: "${userQ}". The following is the result of a database query related to that question: Result: ${JSON.stringify(data)}.Generate a short and clear answer in Polish based on this result.`;
 
-`
-      : '';
-    const prompt = `
-${context}User asked: "${userQ}".
-Here's the query result: ${JSON.stringify(data)}
-
-Summarize concisely and clearly in Polish:
-`;
-
+    console.log(prompt);
     const response = await firstValueFrom(
       this.http.post(
         'https://api.groq.com/openai/v1/chat/completions',
         {
           model: process.env.GROQ_RESPONSE_MODEL,
           messages: [{ role: 'system', content: prompt }],
-          max_tokens: 500,
+          max_tokens: 1000,
           temperature: 0.1,
         },
         {
@@ -54,13 +45,8 @@ Summarize concisely and clearly in Polish:
    * @param history - opcjonalna historia konwersacji do kontekstu
    */
   async generalAnswer(userQ: string, history?: string): Promise<string> {
-    const context = history
-      ? `Historia:
-${history}
-
-`
-      : '';
-    const prompt = `${context}Odpowiedz zwięźle na pytanie użytkownika po polsku: "${userQ}"`;
+    const context = history ? `Historia: ${history}` : '';
+    const prompt = `${context}Respond concisely to the user's question in Polish: "${userQ}"`;
 
     const { data: res } = await firstValueFrom(
       this.http.post(

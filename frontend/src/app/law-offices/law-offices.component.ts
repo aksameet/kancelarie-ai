@@ -57,6 +57,7 @@ export class LawOfficesComponent implements OnChanges {
         })
       )
       .subscribe((list) => {
+        console.log('Fetched law offices:', JSON.stringify(list[2]));
         this.offices = list;
         this.loading = false;
       });

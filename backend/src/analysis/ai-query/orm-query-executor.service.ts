@@ -15,26 +15,50 @@ export class OrmQueryExecutorService {
   async execute(pseudo: string): Promise<any> {
     pseudo = pseudo.replace(/^repo\./, '').trim();
 
-    if (
-      !/^(find\(|findOne\(|findOneBy\(|count\(|findAndCount\()/.test(pseudo)
-    ) {
+    if (pseudo.startsWith('PSEUDO-code:')) {
+      pseudo = pseudo.replace(/^PSEUDO-code:\s*/, '');
+    }
+
+    const allowedPrefixes = [
+      'find(',
+      'findOne(',
+      'findBy(',
+      'findOneBy(',
+      'count(',
+      'findAndCount(',
+      'find({',
+      'find({ order:',
+      'find({ skip:',
+      'find({ where:',
+      'find({ take:',
+      'find({ where:',
+      'find({ select:',
+      'query(',
+    ];
+
+    const allowedKeywords = ['groupBy', 'distinct'];
+
+    const isAllowed =
+      allowedPrefixes.some((prefix) => pseudo.startsWith(prefix)) ||
+      allowedKeywords.some((kw) => pseudo.includes(kw));
+
+    if (!isAllowed) {
       throw new BadRequestException(
-        `Unsupported query type: only find(), findOne(), findOneBy(), count(), findAndCount() allowed.`,
+        `Unsupported query type. Only safe read-only queries like find(), count(), groupBy, distinct(), etc. are allowed.`,
       );
     }
 
-    const fn = new Function(
-      'repo',
-      'MoreThan',
-      'LessThan',
-      'Like',
-      'Not',
-      'IsNull',
-      'In',
-      `return repo.${pseudo};`,
-    );
-
     try {
+      const fn = new Function(
+        'repo',
+        'MoreThan',
+        'LessThan',
+        'Like',
+        'Not',
+        'IsNull',
+        'In',
+        `return repo.${pseudo};`,
+      );
       return await fn(this.repo, MoreThan, LessThan, Like, Not, IsNull, In);
     } catch (e) {
       throw new BadRequestException(
