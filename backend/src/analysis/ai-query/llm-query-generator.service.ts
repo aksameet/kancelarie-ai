@@ -6,7 +6,12 @@ import { firstValueFrom } from 'rxjs';
 export class LlmQueryGeneratorService {
   constructor(private readonly http: HttpService) {}
 
-  async toOrmQuery(userQ: string, history: string): Promise<string | null> {
+  async toOrmQuery(
+    userQ: string,
+    history: string,
+    queryHistory: string[],
+  ): Promise<string | null> {
+    console.log('============ history ============', history);
     const cities = ['warszawa', 'poznan', 'krakow', 'wroclaw', 'gdansk'];
     const specializations = [
       'adwokacka',
@@ -55,13 +60,14 @@ export class LlmQueryGeneratorService {
       → Do not just order by rating. Instead:
       1. Add where: { reviews: MoreThan(20), rating: MoreThan(4.7) }
       2. Order by: rating DESC, then reviews DESC
-      3. Optionally: prioritize offices with multiple type_ids (broad expertise)
+      3. Prioritize offices with multiple type_ids (broad expertise)
       4. Always use take: 1 to return a single best result
       5. Use find({ where: ..., order: ..., take: 1 })
-      6. If you use type_ids, use Raw((alias) => '\\'mapped_value\\' = ANY(' + alias + ')) to match any of the types`;
+      6. If you use type_ids, use Raw((alias) => '\\'mapped_value\\' = ANY(' + alias + ')) to match any of the types
+      7. Provide short reasoning at the prompt end - explain shortly what was taken into account`;
 
     const prompt =
-      `You are an assistant that converts user questions into TypeORM calls (pseudo-code). The database has the following structure: { "id": 534, "created_at": "2025..", "updated_at": "2025..", "city": "wars..", "specialization": "adwo..", "position": 1, "title": "Kanc..", "place_id": "ChIJ..", "data_id": "0x47..", "data_cid": "5037..", "rating": "4.9..", "reviews": 122, "address": "Obro..", "phone": "+48 ..", "website": "http..", "type_id": "tria..", "types": [ "Tria..", "Gene.." ], "type_ids": [ "tria..", "gene.." ], "thumbnail": "http..", "serpapi_thumbnail": "http..", "operating_hours": { "friday": "Open..", "monday": "Open..", "sunday": "Open..", "tuesday": "Open..", "saturday": "Open..", "thursday": "Open..", "wednesday": "Open.." }, "unsupported_extensions": [], "service_options": { "onsite_services": true, "online_appointments": true }, "reviews_link": "http..", "place_id_search": "http..", "open_state": "Open..", "hours": "Open.." }. Use only **exact** values from the lists below (match spelling and case exactly): - Possible cities: ${cities.join(', ')} - Possible specializations: ${specializations.join(', ')}. ${mappingPrompt}. ${best}. Check all user prompts and check if there is anything in that prompt that can be mapped to the database structure above. If there is, convert the question to a TypeORM pseudo-code query that can be executed against the LawOffice database. If the question related to database is too general, respond exactly with: CLARIFY. If the question is not related to the LawOffice database, respond with: NONE. User asks: "${userQ}". Answer *only*: - PSEUDO-code: find(...), find(...order...), find(...skip...), distinct(...), groupBy, count(...), findAndCount(...) (Respond only with **valid** TypeORM pseudo-code, for example:- count({ where: { city: "..." } })- find({ where: { '...': '...' }, order: { rating: 'DESC' }, take: 10 })- findAndCount({ where: { open_state: 'Open 24 hours' } }))), - or: NONE, - or: CLARIFY. `.trim();
+      `You are an assistant that converts user questions into TypeORM calls (pseudo-code). The database has the following structure: { "id": 534, "created_at": "2025..", "updated_at": "2025..", "city": "wars..", "specialization": "adwo..", "position": 1, "title": "Kanc..", "place_id": "ChIJ..", "data_id": "0x47..", "data_cid": "5037..", "rating": "4.9..", "reviews": 122, "address": "Obro..", "phone": "+48 ..", "website": "http..", "type_id": "tria..", "types": [ "Tria..", "Gene.." ], "type_ids": [ "tria..", "gene.." ], "thumbnail": "http..", "serpapi_thumbnail": "http..", "operating_hours": { "friday": "Open..", "monday": "Open..", "sunday": "Open..", "tuesday": "Open..", "saturday": "Open..", "thursday": "Open..", "wednesday": "Open.." }, "unsupported_extensions": [], "service_options": { "onsite_services": true, "online_appointments": true }, "reviews_link": "http..", "place_id_search": "http..", "open_state": "Open..", "hours": "Open.." }. Use only **exact** values from the lists below (match spelling and case exactly): - Possible cities: ${cities.join(', ')} - Possible specializations: ${specializations.join(', ')}. ${mappingPrompt}. ${best}. If there is any context it is this: ${history}. If the user's new question refers to "the same firms" or "the ones mentioned earlier", then you MUST reuse the same filters (city, type_ids, specialisation, order, take, etc.) from the previous query context: ${queryHistory}, unless the new question explicitly changes them. NEVER switch from type_ids → specialization. Check all user prompts and check if there is anything in that prompt that can be mapped to the database structure above. If there is, convert the question to a TypeORM pseudo-code query that can be executed against the LawOffice database. If the question related to database is too general, respond exactly with: CLARIFY. If the question is not related to the LawOffice database, respond with: NONE. User asks: "${userQ}". Answer *only*: - PSEUDO-code: find(...), find(...order...), find(...skip...), distinct(...), groupBy, count(...), findAndCount(...) (Respond only with **valid** TypeORM pseudo-code, for example:- count({ where: { city: "..." } })- find({ where: { '...': '...' }, order: { rating: 'DESC' }, take: 10 })- findAndCount({ where: { open_state: 'Open 24 hours' } }))), - or: NONE, - or: CLARIFY. `.trim();
 
     const res = await firstValueFrom(
       this.http.post(
@@ -70,7 +76,7 @@ export class LlmQueryGeneratorService {
           model: process.env.GROQ_QUERY_MODEL,
           messages: [{ role: 'system', content: prompt }],
           max_tokens: 1000,
-          temperature: 0,
+          temperature: 0.7,
         },
         {
           headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },

@@ -86,8 +86,8 @@
   >
     <h2 class="text-lg font-semibold mb-3">Podsumowanie AI</h2>
 
-    <!-- widoczne dwa zdania -->
-    <p class="mb-4">{{ aiSummary }}</p>
+    <markdown [data]="aiSummary"></markdown>
+    <!-- <p class="mb-4">{{ aiSummary }}</p> -->
 
     <!-- zwijane myśli -->
     <details *ngIf="aiThoughts">

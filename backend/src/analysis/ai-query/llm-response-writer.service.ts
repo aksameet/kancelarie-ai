@@ -27,7 +27,7 @@ export class LlmResponseWriterService {
           model: process.env.GROQ_RESPONSE_MODEL,
           messages: [{ role: 'system', content: prompt }],
           max_tokens: 1000,
-          temperature: 0.1,
+          temperature: 0.5,
         },
         {
           headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
@@ -54,7 +54,7 @@ export class LlmResponseWriterService {
           model: process.env.GROQ_RESPONSE_MODEL,
           messages: [{ role: 'system', content: prompt }],
           max_tokens: 100,
-          temperature: 0.5,
+          temperature: 1.2,
         },
         { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } },
       ),

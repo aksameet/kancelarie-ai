@@ -36,20 +36,20 @@ export class AnalysisSummarizeService {
         {
           role: 'system',
           name: 'language_instruction',
-          content: 'Odpowiadaj zawsze poprawną polszczyzną.',
+          content:
+            'Use sophisticated, expert-level scientific Polish language with a rich vocabulary full of wisdom and eloquence.',
         },
         {
           role: 'system',
           content: `
-          Odpowiedz dokładnie dwoma zdaniami.
-          Pierwsze zdanie zawsze: "Otrzymałem ${offices.length} (podaj poprawne odmiany) ${type} z ${city}".
-          W drugim: podsumowanie danych z bazy max 600 znaków.
+          In the first sentence (use correct grammatical inflections): "Otrzymałem ${offices.length} (podaj poprawne odmiany) ${type} z ${city}".
+          Then, present an expert-level summary of the database data, describing various nuances of the dataset, along with in-depth analyses and interpretations. Feel free to engage in overinterpretation.
         `,
         },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 1000,
-      temperature: 0,
+      max_tokens: 2000,
+      temperature: 1.5,
     };
 
     const { data } = await firstValueFrom(
